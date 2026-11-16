@@ -1,7 +1,7 @@
 use std::io::prelude::*;
 use std::net::TcpStream;
 use std::io::BufReader;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::thread;
 use std::fs::{self, File};
 use std::net::ToSocketAddrs;
@@ -88,6 +88,7 @@ pub fn download<A: ToSocketAddrs, S: AsRef<Path>>(addr: A, to_path: S, r_file: R
         read_bytes_to_file(&mut buffer, file_size, &file_location)?;
     }else if file_type == IPMSG_FILE_DIR {
         let mut next_path = to_path.as_ref().to_path_buf();
+        let mut directory_depth = 0usize;
         let mut buffer = BufReader::new(stream);
         loop {
             let header_size_str = match read_delimiter(&mut buffer)? {
@@ -113,25 +114,58 @@ pub fn download<A: ToSocketAddrs, S: AsRef<Path>>(addr: A, to_path: S, r_file: R
             let cmd = protocol::get_mode(file_attr);
             info!("header context {:?}", v);
             if cmd == IPMSG_FILE_DIR {
+                validate_transfer_name(file_name)?;
                 next_path.push(file_name);
-                if !next_path.exists() {
-                    fs::create_dir(&next_path)?;
+                match fs::symlink_metadata(&next_path) {
+                    Ok(metadata) if metadata.file_type().is_dir() => {}
+                    Ok(_) => return Err(anyhow!("directory destination is not a real directory: {:?}", next_path)),
+                    Err(err) if err.kind() == std::io::ErrorKind::NotFound => fs::create_dir(&next_path)?,
+                    Err(err) => return Err(err.into()),
                 }
-                info!("crate dir{:?}", next_path);
+                directory_depth += 1;
+                info!("created directory {:?}", next_path);
             }else if cmd == IPMSG_FILE_REGULAR {
+                validate_transfer_name(file_name)?;
                 next_path.push(file_name);
-                info!("crate file{:?}", next_path);
-                read_bytes_to_file(&mut buffer, file_size, &next_path)?;
+                if let Ok(metadata) = fs::symlink_metadata(&next_path) {
+                    if metadata.file_type().is_symlink() || !metadata.file_type().is_file() {
+                        return Err(anyhow!("file destination is not a regular file: {:?}", next_path));
+                    }
+                }
+                info!("receiving file {:?}", next_path);
+                let file_result = read_bytes_to_file(&mut buffer, file_size, &next_path);
                 next_path.pop();
-            }else if cmd == IPMSG_FILE_RETPARENT  {
+                file_result?;
+            }else if cmd == IPMSG_FILE_RETPARENT {
+                if directory_depth == 0 {
+                    return Err(anyhow!("directory transfer attempted to leave its destination root"));
+                }
                 next_path.pop();
+                directory_depth -= 1;
                 info!("back to parent {:?}", next_path);
             }else {
-
+                return Err(anyhow!("unsupported directory entry type: {:#x}", file_attr));
             }
         }
     }
     info!("download end!");
+    Ok(())
+}
+
+fn validate_transfer_name(name: &str) -> Result<()> {
+    // Filenames are a single IPMSG header field and must never become paths.
+    // Reject both platform separators so a packet cannot escape the chosen
+    // download directory on either Unix or Windows.
+    if name.is_empty()
+        || name == "."
+        || name == ".."
+        || name.contains(['/', '\\\\', ':', '\\0'])
+        || Path::new(name).components().any(|component| {
+            !matches!(component, Component::Normal(_))
+        })
+    {
+        return Err(anyhow!("unsafe filename in directory transfer: {:?}", name));
+    }
     Ok(())
 }
 
