@@ -469,6 +469,9 @@ pub fn append_chat_message(
     };
     let metadata = Label::new(Some(&metadata_text));
     metadata.set_xalign(if outgoing { 1.0 } else { 0.0 });
+    metadata.set_single_line_mode(true);
+    metadata.set_ellipsize(gtk::pango::EllipsizeMode::End);
+    metadata.set_max_width_chars(42);
     metadata.add_css_class("dim-label");
     metadata.add_css_class("caption");
 
