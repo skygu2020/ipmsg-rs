@@ -158,14 +158,25 @@ pub fn get_local_ip() -> IpAddr {
     local_ip_address::local_ip().expect("获取本地ip失败")
 }
 
-///得到主机名
+/// 得到本机用户名，优先使用操作系统提供的登录用户名。
+/// 在无法读取用户名的环境中回退到主机名，避免发送空昵称。
+pub fn get_user_name() -> String {
+    std::env::var("USER")
+        .or_else(|_| std::env::var("USERNAME"))
+        .ok()
+        .map(|name| name.trim().to_owned())
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(get_host_name)
+}
+
+/// 得到主机名
 pub fn get_host_name() -> String {
     host_name::get().unwrap().into_string().unwrap()
 }
 
-pub static HOST_NAME: Lazy<String> = Lazy::new(||{
-    return get_host_name();
-});
+pub static USER_NAME: Lazy<String> = Lazy::new(|| get_user_name());
+
+pub static HOST_NAME: Lazy<String> = Lazy::new(|| get_host_name());
 
 pub static LOCAL_IP: Lazy<String> = Lazy::new(||{
     return get_local_ip().to_string();
