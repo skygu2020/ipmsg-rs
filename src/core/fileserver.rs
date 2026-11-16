@@ -43,8 +43,7 @@ impl FileServer {
                     let mut stream_echo = base_stream;
                     let mut buf = [0; 2048];
                     let byte_size = stream_echo.read(&mut buf[..]).unwrap();
-                    let mut tmp_buf = &buf[0..byte_size];
-                    let tmp_str = GB18030.decode(&tmp_buf, DecoderTrap::Strict).unwrap();
+                    let tmp_str = GB18030.decode(&buf[0..byte_size], DecoderTrap::Strict).unwrap();
                     info!("file_processer receive raw str {:?}", tmp_str);
                     let result = packet_parser().parse(tmp_str.as_str());
                     match result {
@@ -73,19 +72,16 @@ impl FileServer {
         });
     }
 
-    fn process_dir(pool_tmp: Arc<Mutex<Vec<ShareInfo>>>, mut stream_echo: TcpStream, ext_str: String) -> () {
+    fn process_dir(pool_tmp: Arc<Mutex<Vec<ShareInfo>>>, stream_echo: TcpStream, ext_str: String) -> () {
         let file_attr = ext_str.splitn(3, |c| c == ':').into_iter().filter(|x: &&str| !x.is_empty()).collect::<Vec<&str>>();
         info!("file dir packet parse {:?}", file_attr);
         if file_attr.len() >= 2 {
             let packet_id = i64::from_str_radix(file_attr[0], 16).unwrap() as u32;
             let file_id = i64::from_str_radix(file_attr[1], 16).unwrap();
-            let mut search_result: Option<ShareInfo> = Option::None;
-            {
+            let search_result = {
                 let search = pool_tmp.lock().unwrap();
-                let ref vec: Vec<ShareInfo> = *search;
-                let result = vec.iter().find(|s| s.packet_no == packet_id);
-                search_result = result.cloned();
-            }
+                search.iter().find(|s| s.packet_no == packet_id).cloned()
+            };
             if let Some(result_share_file) = search_result {
                 let file_info = result_share_file.file_info.iter().find(|ref f| f.file_id == file_id as u32);
                 if let Some(file_info) = file_info {
@@ -97,7 +93,7 @@ impl FileServer {
         }
     }
 
-    fn process_file(pool_tmp: &Arc<Mutex<Vec<ShareInfo>>>, mut stream_echo: &mut TcpStream, ext_str: String) -> () {
+    fn process_file(pool_tmp: &Arc<Mutex<Vec<ShareInfo>>>, stream_echo: &mut TcpStream, ext_str: String) -> () {
         let file_attr = ext_str.splitn(4, |c| c == ':').into_iter().filter(|x: &&str| !x.is_empty()).collect::<Vec<&str>>();
         info!("file packet parse {:?}", file_attr);
         if file_attr.len() >= 3 {
@@ -124,13 +120,10 @@ impl FileServer {
                     return;
                 }
             };
-            let mut search_result: Option<ShareInfo> = Option::None;
-            {
+            let search_result = {
                 let search = pool_tmp.lock().unwrap();
-                let ref vec: Vec<ShareInfo> = *search;
-                let result = vec.iter().find(|ref s| s.packet_no == packet_id);
-                search_result = result.cloned();
-            }
+                search.iter().find(|s| s.packet_no == packet_id).cloned()
+            };
             if let Some(result_share_file) = search_result {
                 let file_info = result_share_file.file_info.iter().find(|f| f.file_id == file_id);
                 if let Some(file_info) = file_info {
