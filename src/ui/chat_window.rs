@@ -1,6 +1,6 @@
 use gtk::prelude::*;
 use gtk::{
-    CellRendererText, Window, ListStore, TreeView, TreeViewColumn, Builder, Button, TextView, WrapMode, ListBox, ListBoxRow, Label, Box as GtkBox, Orientation
+    CellRendererText, Window, ListStore, TreeView, TreeViewColumn, Builder, Button, TextView, WrapMode, ListBox, ListBoxRow, Label, Box as GtkBox, Orientation, Align
 };
 use std::sync::Arc;
 use std::cell::RefCell;
@@ -22,7 +22,7 @@ use crate::models::message;
 #[derive(Clone)]
 pub struct ChatWindow {
     pub win :Window,
-    pub his_view :TextView,
+    pub history_list: ListBox,
     pub ip :String,
     pub pre_send_files :Arc<RefCell<Vec<model::FileInfo>>>,
     pub received_store :ListStore,
@@ -40,8 +40,9 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
     let chat_window: Window = builder.object("chat_window").unwrap();
     chat_window.set_title(Some(chat_title));
     // chat_window.set_border_width(5);
-    //历史
-    let text_view_history: TextView = builder.object("text_view_history").unwrap();
+    // 消息历史使用独立行和气泡布局。
+    let history_list: ListBox = builder.object("history_list").unwrap();
+    history_list.set_selection_mode(gtk::SelectionMode::None);
     //待发送的
     let text_view_presend: TextView = builder.object("text_view_presend").unwrap();
     //待发送文件
@@ -49,7 +50,6 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
     //接受的文件
     let tree_view_received: TreeView = builder.object("tree_view_received").unwrap();
 
-    text_view_history.set_wrap_mode(WrapMode::WordChar);
     text_view_presend.set_wrap_mode(WrapMode::WordChar);
     append_column(&tree_view_received, 0, "收到的文件");
 
@@ -280,8 +280,13 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
     // chat_window.show_all();
     chat_window.present();
     let clone_chat = chat_window.clone();
-    let clone_hist_view = text_view_history.clone();
-    ChatWindow{ win: clone_chat, his_view:  clone_hist_view, ip: host_ip, pre_send_files, received_store: pre_received_files_model}
+    ChatWindow {
+        win: clone_chat,
+        history_list,
+        ip: host_ip,
+        pre_send_files,
+        received_store: pre_received_files_model,
+    }
 }
 
 fn add_path_to_send_list(
@@ -391,3 +396,45 @@ fn modify_received_list(received_store :Option<ListStore>, received_files: Arc<R
 
     Continue(false)
 }*/
+
+/// Append one message as a chat bubble. Incoming messages align left; our own
+/// messages align right. The timestamp is rendered separately from the body.
+pub fn append_chat_message(history: &ListBox, sender: &str, body: &str, outgoing: bool) {
+    let row = ListBoxRow::new();
+    row.set_selectable(false);
+    row.set_activatable(false);
+
+    let line = GtkBox::new(Orientation::Horizontal, 0);
+    line.set_hexpand(true);
+    line.set_halign(if outgoing { Align::End } else { Align::Start });
+
+    let bubble = GtkBox::new(Orientation::Vertical, 5);
+    bubble.set_margin_top(8);
+    bubble.set_margin_bottom(8);
+    bubble.set_margin_start(12);
+    bubble.set_margin_end(12);
+    bubble.set_size_request(180, -1);
+    bubble.set_hexpand(false);
+    bubble.add_css_class("card");
+    bubble.add_css_class(if outgoing { "message-outgoing" } else { "message-incoming" });
+
+    let timestamp = Local::now().format("%H:%M").to_string();
+    let metadata = Label::new(Some(&format!("{}  ·  {}", sender, timestamp)));
+    metadata.set_xalign(if outgoing { 1.0 } else { 0.0 });
+    metadata.add_css_class("dim-label");
+    metadata.add_css_class("caption");
+
+    let content = Label::new(Some(body));
+    content.set_xalign(0.0);
+    content.set_wrap(true);
+    content.set_wrap_mode(gtk::pango::WrapMode::WordChar);
+    content.set_selectable(true);
+    content.set_max_width_chars(52);
+    content.set_hexpand(true);
+
+    bubble.append(&metadata);
+    bubble.append(&content);
+    line.append(&bubble);
+    row.set_child(Some(&line));
+    history.append(&row);
+}
