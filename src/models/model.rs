@@ -51,7 +51,7 @@ impl PacketBuilder {
         let mut packet_builder: PacketBuilder = Default::default();
         packet_builder.ver = format!("{}", IPMSG_VERSION);
         packet_builder.packet_no = format!("{}", local.timestamp());
-        packet_builder.sender_name = protocol::HOST_NAME.clone();
+        packet_builder.sender_name = protocol::USER_NAME.clone();
         packet_builder.sender_host = protocol::HOST_NAME.clone();
         packet_builder.command_no = command_no;
         packet_builder
@@ -75,7 +75,7 @@ impl Packet {
         Packet {
             ver: format!("{}", IPMSG_VERSION),
             packet_no: format!("{}", local.timestamp()),
-            sender_name: protocol::HOST_NAME.clone(),
+            sender_name: protocol::USER_NAME.clone(),
             sender_host: protocol::HOST_NAME.clone(),
             command_no: command_no,
             additional_section: additional_section,
