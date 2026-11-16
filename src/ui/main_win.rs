@@ -16,9 +16,14 @@ use crate::models::event::UiEvent;
 fn contact_display_name(raw: &str) -> String {
     let name = raw.split('\0').next().unwrap_or("").trim();
     if let Some(marker) = name.find("-<") {
-        if name.ends_with(">-") {
-            let identifier = &name[marker + 2..name.len() - 2];
-            if identifier.len() >= 8 && identifier.chars().all(|c| c.is_ascii_hexdigit()) {
+        let suffix = &name[marker + 2..];
+        if let Some(close) = suffix.find('>') {
+            let identifier = &suffix[..close];
+            let trailing = &suffix[close + 1..];
+            if identifier.len() >= 8
+                && identifier.chars().all(|c| c.is_ascii_hexdigit())
+                && (trailing.is_empty() || trailing == "-")
+            {
                 let short_name = name[..marker].trim_end_matches('-').trim();
                 if !short_name.is_empty() {
                     return short_name.to_owned();
