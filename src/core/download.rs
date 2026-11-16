@@ -18,16 +18,17 @@ use crate::models::model::{Packet, ReceivedSimpleFileInfo};
 
 #[derive(Clone, Debug)]
 pub struct ManagerPool {
-    pub file_pool: Arc<Mutex<HashMap<u32, PoolFile>>>,
+    pub file_pool: Arc<Mutex<HashMap<(String, u32, u32), PoolFile>>>,
 }
 
 impl ManagerPool {
 
-    pub fn new(file_pool: Arc<Mutex<HashMap< u32, PoolFile>>>) -> ManagerPool {
+    pub fn new(file_pool: Arc<Mutex<HashMap<(String, u32, u32), PoolFile>>>) -> ManagerPool {
         ManagerPool { file_pool}
     }
 
     pub fn run(self, file_info: ReceivedSimpleFileInfo, save_path: PathBuf, download_ip: String) {
+        let task_key = (download_ip.clone(), file_info.packet_id, file_info.file_id);
         let tmp = self.clone();
         {
             let mut lock = match tmp.file_pool.lock() {
@@ -42,7 +43,7 @@ impl ManagerPool {
                     return;
                 }
             };
-            if let Some(p_file) = lock.get(&file_info.file_id) {
+            if let Some(p_file) = lock.get(&task_key) {
                 if p_file.status == 1 {
                     // Download already in progress.
                     if let Err(err) = GLOBLE_SENDER.send(ModelEvent::DownloadIsBusy { file: file_info }) {
@@ -51,7 +52,7 @@ impl ManagerPool {
                     return;
                 }
                 // A previous attempt failed; mark the existing task active again.
-                lock.insert(file_info.file_id, PoolFile {
+                lock.insert(task_key.clone(), PoolFile {
                     status: 1,
                     file_info: file_info.clone(),
                 });
@@ -104,7 +105,7 @@ impl ManagerPool {
                 let mut file = lock.get(&file_info.file_id);
                 if let Some(p_file) = file.take() {
                     if is_ok {
-                        lock.remove(&file_info.file_id);
+                        lock.remove(&task_key);
                         if let Err(err) = GLOBLE_SENDER.send(ModelEvent::RemoveDownloadTaskInPool {
                             packet_id: file_info.packet_id,
                             file_id: file_info.file_id,
@@ -115,7 +116,7 @@ impl ManagerPool {
                     }else{
                         let mut tmp_file = p_file.clone();
                         tmp_file.status = 0;
-                        lock.insert(tmp_file.file_info.file_id, tmp_file);
+                        lock.insert(task_key.clone(), tmp_file);
                         if let Err(err) = GLOBLE_SENDER.send(ModelEvent::DownloadFailed {
                             packet_id: file_info.packet_id,
                             file_id: file_info.file_id,
