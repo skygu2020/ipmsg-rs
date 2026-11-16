@@ -60,7 +60,8 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
     let tree_view_received: TreeView = builder.object("tree_view_received").unwrap();
 
     text_view_presend.set_wrap_mode(WrapMode::WordChar);
-    append_column(&tree_view_received, 0, "收到的文件");
+    append_column(&tree_view_received, 0, "文件名");
+    append_column(&tree_view_received, 6, "大小");
 
     list_box_presend.set_selection_mode(gtk::SelectionMode::None);
     list_box_presend.set_tooltip_text(Some("可将文件或文件夹拖放到此处添加到待发送列表"));
@@ -480,7 +481,7 @@ fn append_column(tree: &TreeView, id: i32, title: &str) {
 }
 
 fn create_and_fill_model1() -> ListStore {
-    let model = ListStore::new(&[String::static_type(), u32::static_type(), u32::static_type(), u8::static_type(), u64::static_type(), i64::static_type()]);
+    let model = ListStore::new(&[String::static_type(), u32::static_type(), u32::static_type(), u8::static_type(), u64::static_type(), i64::static_type(), String::static_type()]);
     model
 }
 
