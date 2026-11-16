@@ -96,7 +96,7 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
         #[weak] remove_popover,
         #[weak] tree_view_presend,
         move |_, _, x, y| {
-            if let Some((path, _, _, _)) = tree_view_presend.path_at_pos(x as i32, y as i32) {
+            if let Some((Some(path), _, _, _)) = tree_view_presend.path_at_pos(x as i32, y as i32) {
                 tree_view_presend.selection().select_path(&path);
                 remove_popover.set_pointing_to(Some(&gtk::gdk::Rectangle::new(x as i32, y as i32, 1, 1)));
                 remove_popover.popup();
