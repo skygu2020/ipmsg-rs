@@ -14,7 +14,7 @@ use crate::models::event::UiEvent;
 // "dell-<hex-id>-". Keep the real hostname in the host column, but avoid
 // showing the generated identifier as part of the contact's display name.
 fn contact_display_name(raw: &str) -> String {
-    let name = raw.split('\\0').next().unwrap_or("").trim();
+    let name = raw.split('\0').next().unwrap_or("").trim();
     if let Some(marker) = name.find("-<") {
         if name.ends_with(">-") {
             let identifier = &name[marker + 2..name.len() - 2];
