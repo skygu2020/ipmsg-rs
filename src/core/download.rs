@@ -37,15 +37,24 @@ impl ManagerPool {
                     return;
                 }
             };
-            let file = lock.get(&file_info.file_id);
-            if let Some(p_file) = file {
+            if let Some(p_file) = lock.get(&file_info.file_id) {
                 if p_file.status == 1 {
-                    //下载中
-                    GLOBLE_SENDER.send(ModelEvent::DownloadIsBusy{ file: file_info }).expect("send DownloadIsBusy fail!");
+                    // Download already in progress.
+                    if let Err(err) = GLOBLE_SENDER.send(ModelEvent::DownloadIsBusy { file: file_info }) {
+                        log::error!("failed to report busy download: {}", err);
+                    }
                     return;
                 }
-            }else {
-                lock.insert(file_info.file_id, PoolFile { status: 1, file_info: file_info.clone() });
+                // A previous attempt failed; mark the existing task active again.
+                lock.insert(file_info.file_id, PoolFile {
+                    status: 1,
+                    file_info: file_info.clone(),
+                });
+            } else {
+                lock.insert(file_info.file_id, PoolFile {
+                    status: 1,
+                    file_info: file_info.clone(),
+                });
             }
         }
         let tmp = self.clone();
