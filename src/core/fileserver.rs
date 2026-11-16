@@ -357,9 +357,10 @@ pub fn make_header(path: &PathBuf, ret_parent: bool) -> std::io::Result<String> 
     let mut header = String::new();
     header.push(IPMSG_PACKET_DELIMITER);
 
-    let (file_size, file_attr) = if ret_parent {
+    let (file_size, file_attr, create_time, modified_time) = if ret_parent {
         header.push(REPARENT_PATH);
-        (0, protocol::IPMSG_FILE_RETPARENT)
+        let timestamp_now = Local::now().timestamp() as u64;
+        (0, protocol::IPMSG_FILE_RETPARENT, timestamp_now, timestamp_now)
     } else {
         let path_metadata: Metadata = fs::symlink_metadata(path)?;
         let file_name = path.file_name()
@@ -379,15 +380,27 @@ pub fn make_header(path: &PathBuf, ret_parent: bool) -> std::io::Result<String> 
                 format!("unsupported shared filesystem entry: {:?}", path),
             ));
         };
-        (path_metadata.len(), file_attr)
+
+        // IPMSG timestamps are Unix seconds. Use filesystem timestamps rather
+        // than the time the directory listing happened to be sent.
+        let modified = path_metadata.modified()?
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let created = path_metadata.created()
+            .unwrap_or_else(|_| path_metadata.modified().unwrap_or(std::time::UNIX_EPOCH))
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        (path_metadata.len(), file_attr, created, modified)
     };
 
     header.push(IPMSG_PACKET_DELIMITER);
     header.push_str(format!("{:x}", file_size).as_str());
     header.push(IPMSG_PACKET_DELIMITER);
     header.push_str(format!("{:x}", file_attr).as_str());
-    let timestamp_now = Local::now().timestamp();
-    header.push_str(format!(":{:x}={:x}:{:x}={:x}:", protocol::IPMSG_FILE_CREATETIME, timestamp_now, protocol::IPMSG_FILE_MTIME, timestamp_now).as_str());
+    header.push_str(format!(":{:x}={:x}:{:x}={:x}:", protocol::IPMSG_FILE_CREATETIME, create_time, protocol::IPMSG_FILE_MTIME, modified_time).as_str());
     let mut length = util::utf8_to_gb18030(&header).len();
     length += format!("{:0>4x}", length).len();
     header.insert_str(0, format!("{:0>4x}", length).as_str());
