@@ -31,16 +31,31 @@ impl FileServer {
     pub fn run(&self) {
         let pool_tmp = self.file_pool.clone();
         thread::spawn(move || {
-            let tcp_listener: TcpListener = TcpListener::bind(protocol::ADDR.as_str()).unwrap();
-            let pool_tmp = pool_tmp.clone();
+            let tcp_listener = match TcpListener::bind(protocol::ADDR.as_str()) {
+                Ok(listener) => listener,
+                Err(err) => {
+                    info!("failed to bind file transfer TCP listener at {:?}: {}", protocol::ADDR.as_str(), err);
+                    return;
+                }
+            };
             info!("tcp server start listening! {:?}", protocol::ADDR.as_str());
             for stream in tcp_listener.incoming() {
-                let base_stream = stream.unwrap().try_clone().unwrap();
-                //let search_arc = search_arc_tmp.clone();
+                let mut stream_echo = match stream {
+                    Ok(stream) => stream,
+                    Err(err) => {
+                        info!("failed to accept file transfer connection: {}", err);
+                        continue;
+                    }
+                };
+                let src = match stream_echo.peer_addr() {
+                    Ok(address) => address,
+                    Err(err) => {
+                        info!("failed to get file transfer peer address: {}", err);
+                        continue;
+                    }
+                };
                 let pool_tmp = pool_tmp.clone();
-                let src = base_stream.peer_addr().unwrap();
                 thread::spawn(move || {
-                    let mut stream_echo = base_stream;
                     let mut request = Vec::with_capacity(256);
                     let mut byte = [0u8; 1];
 
