@@ -13,6 +13,7 @@ pub enum UiEvent {
     OpenOrReOpenChatWindow1 { name: String, ip: String, packet: Option<Packet>},
     DisplaySelfSendMsgInHis{to_ip: String, context: String, files: Option<ShareInfo>},
     DisplayReceivedMsgInHis{from_ip: String, name: String, context: String, files: Vec<ReceivedSimpleFileInfo> },
+    DownloadProgress { packet_id: u32, file_id: u32, download_ip: String, transferred: u64, total: u64 },
     RemoveInReceivedList {packet_id: u32, file_id: u32, download_ip: String },
 }
 
@@ -31,5 +32,6 @@ pub enum ModelEvent {
     PutInTcpFilePool(),
     DownloadIsBusy { file: ReceivedSimpleFileInfo },
     PutDownloadTaskInPool { file: ReceivedSimpleFileInfo, save_base_path: PathBuf, download_ip: String},
+    DownloadProgress { packet_id: u32, file_id: u32, download_ip: String, transferred: u64, total: u64 },
     RemoveDownloadTaskInPool { packet_id: u32, file_id: u32, download_ip: String},
 }
