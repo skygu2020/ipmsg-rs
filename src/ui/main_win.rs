@@ -67,7 +67,7 @@ impl MainWindow {
 
         let mut chat_windows: HashMap<String, ChatWindow> = HashMap::new();
 
-        tree.connect_row_activated(move |tree_view, tree_path, tree_view_column| {
+        tree.connect_row_activated(move |tree_view, _tree_path, _tree_view_column| {
             let selection = tree_view.selection();
             if let Some((model, iter)) = selection.selected() {
                 let ip_str = model.get_value(&iter, 4).get::<String>().unwrap();
@@ -91,12 +91,9 @@ impl MainWindow {
                 match event {
                     UiEvent::OpenOrReOpenChatWindow { name, ip } => {
                         info!("winds 的长度 {:?}", chat_windows.len());
-                        match chat_windows.get(&ip) {
-                            Some(win) => {}
-                            None => {
-                                let chat_win = crate::ui::chat_window::create_chat_window(name, ip.clone());
-                                chat_windows.insert(ip.clone(), chat_win);
-                            }
+                        if !chat_windows.contains_key(&ip) {
+                            let chat_win = crate::ui::chat_window::create_chat_window(name, ip.clone());
+                            chat_windows.insert(ip.clone(), chat_win);
                         }
                     }
                     UiEvent::UpdateUserListFooterStatus(text) => {
@@ -152,11 +149,9 @@ impl MainWindow {
                         }
                     }
                     UiEvent::CloseChatWindow(ip) => {
-                        if let Some(win) = chat_windows.get(&ip) {
-                            chat_windows.remove(&ip);
-                        }
+                        chat_windows.remove(&ip);
                     }
-                    UiEvent::OpenOrReOpenChatWindow1 { name, ip, packet } => {
+                    UiEvent::OpenOrReOpenChatWindow1 { name, ip, packet: _ } => {
                         match chat_windows.get(&ip) {
                             Some(win) => {
                                 win.win.show();
@@ -169,10 +164,10 @@ impl MainWindow {
                             }
                         }
                     }
-                    UiEvent::DisplaySelfSendMsgInHis { to_ip, context, files } => {
+                    UiEvent::DisplaySelfSendMsgInHis { to_ip, context, files: _ } => {
                         match chat_windows.get(&to_ip) {
                             Some(win) => {
-                                let (his_start_iter, mut his_end_iter) = win.his_view.buffer().bounds();
+                                let (_, mut his_end_iter) = win.his_view.buffer().bounds();
                                 win.his_view.buffer().insert(&mut his_end_iter, format!("{}:{}\n", "我", context).as_str());
                             }
                             None => {}
@@ -221,9 +216,6 @@ impl MainWindow {
                             }
                             None => {}
                         }
-                    }
-                    _ => {
-                        println!("{}", "aaa");
                     }
                 };
             }
