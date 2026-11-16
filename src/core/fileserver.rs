@@ -219,8 +219,6 @@ pub fn make_header(path: &PathBuf, ret_parent: bool) -> String {
         } else {
             file_attr = protocol::IPMSG_FILE_REGULAR;
         }
-        path_metadata.created();
-        path_metadata.modified();
     }
 
     header.push(IPMSG_PACKET_DELIMITER);
