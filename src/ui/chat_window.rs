@@ -1,7 +1,6 @@
 use gtk::prelude::*;
 use gtk::{
-    CellRendererText, Window,
-    ListStore, TreeView, TreeViewColumn, Builder, Button, TextView, WrapMode
+    Window, ListStore, TreeView, TreeViewColumn, Builder, Button, TextView, WrapMode, ListBox, ListBoxRow, Label, Box as GtkBox, Orientation
 };
 use std::sync::Arc;
 use std::cell::RefCell;
@@ -46,16 +45,16 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
     //待发送的
     let text_view_presend: TextView = builder.object("text_view_presend").unwrap();
     //待发送文件
-    let tree_view_presend: TreeView = builder.object("tree_view_presend").unwrap();
+    let list_box_presend: ListBox = builder.object("list_box_presend").unwrap();
     //接受的文件
     let tree_view_received: TreeView = builder.object("tree_view_received").unwrap();
 
     text_view_history.set_wrap_mode(WrapMode::WordChar);
     text_view_presend.set_wrap_mode(WrapMode::WordChar);
-    append_column(&tree_view_presend, 0, "待发送文件");
     append_column(&tree_view_received, 0, "收到的文件");
 
-    tree_view_presend.set_tooltip_text(Some("可将文件或文件夹拖放到此处添加到待发送列表"));
+    list_box_presend.set_selection_mode(gtk::SelectionMode::None);
+    list_box_presend.set_tooltip_text(Some("可将文件或文件夹拖放到此处添加到待发送列表"));
 
 
     let btn_clear: Button = builder.object("btn_clear").unwrap();
@@ -66,47 +65,8 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
     //let text_view_presend_clone = text_view_presend.clone();
     //let arc_received_files: Arc<RefCell<Vec<ReceivedSimpleFileInfo>>> = Arc::new(RefCell::new(Vec::new()));
     let pre_send_files: Arc<RefCell<Vec<model::FileInfo>>> = Arc::new(RefCell::new(Vec::new()));//待发送文件列表
-    let pre_send_files_model = create_and_fill_model();
-    tree_view_presend.set_model(Some(&pre_send_files_model));
 
-    // Right-click a queued attachment to remove it without sending.
-    let remove_popover = gtk::Popover::new();
-    let remove_button = Button::with_label("取消添加");
-    remove_popover.set_child(Some(&remove_button));
-    remove_popover.set_parent(&tree_view_presend);
-    remove_button.connect_clicked(clone!(
-        #[strong] pre_send_files,
-        #[strong] pre_send_files_model,
-        #[weak] remove_popover,
-        #[weak] tree_view_presend,
-        move |_| {
-            if let Some((_, iter)) = tree_view_presend.selection().selected() {
-                let id_text = pre_send_files_model.get_value(&iter, 1).get::<String>().unwrap_or_default();
-                if let Ok(file_id) = id_text.parse::<u32>() {
-                    pre_send_files.borrow_mut().retain(|file| file.file_id != file_id);
-                    pre_send_files_model.remove(&iter);
-                }
-            }
-            remove_popover.popdown();
-        }
-    ));
-    let right_click = gtk::GestureClick::new();
-    right_click.set_button(3);
-    right_click.connect_pressed(clone!(
-        #[weak] remove_popover,
-        #[weak] tree_view_presend,
-        move |_, _, x, y| {
-            if let Some((Some(path), _, _, _)) = tree_view_presend.path_at_pos(x as i32, y as i32) {
-                tree_view_presend.selection().select_path(&path);
-                remove_popover.set_pointing_to(Some(&gtk::gdk::Rectangle::new(x as i32, y as i32, 1, 1)));
-                remove_popover.popup();
-            } else {
-                remove_popover.popdown();
-            }
-        }
-    ));
-    tree_view_presend.add_controller(right_click);
-    //let pre_send_files_model_send = pre_send_files_model.clone();
+
     let pre_received_files_model = create_and_fill_model1();
     tree_view_received.set_model(Some(&pre_received_files_model));
     let files_send_clone = pre_send_files.clone();
@@ -115,7 +75,6 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
     let drop_target = gtk::DropTarget::new(gdk::FileList::static_type(), gdk::DragAction::COPY);
     drop_target.connect_drop(clone!(
         #[strong] pre_send_files,
-        #[strong] pre_send_files_model,
         move |_, value, _, _| {
             let Ok(file_list) = value.get::<gdk::FileList>() else {
                 return false;
@@ -126,7 +85,7 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
                 let Some(path) = file.path() else {
                     continue;
                 };
-                match add_path_to_send_list(path, &pre_send_files, &pre_send_files_model) {
+                match add_path_to_send_list(path, &pre_send_files, &list_box_presend) {
                     Ok(()) => added += 1,
                     Err(err) => log::warn!("无法添加拖放项目: {}", err),
                 }
@@ -137,7 +96,6 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
     chat_window.add_controller(drop_target);
 
     btn_send.connect_clicked(clone!(
-        #[strong] pre_send_files_model,
         #[strong] host_ip,
         #[strong] text_view_presend,
         move|_|{
@@ -146,7 +104,7 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
         let (packet, share_file) = message::create_sendmsg(context.to_owned(), files_send_clone.clone().borrow().to_vec(), host_ip.clone());
         GLOBLE_SENDER.send(ModelEvent::SendOneMsg {to_ip: host_ip.clone(), packet, context: context.to_owned(), files: share_file}).unwrap();
         files_send_clone.borrow_mut().clear();
-        pre_send_files_model.clear();
+        clear_queued_rows(&list_box_presend);
         text_view_presend.buffer().set_text("");
     },
     ));
@@ -206,7 +164,6 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
     let pre_send_files_open_file = pre_send_files.clone();
     let chat_window_open_save = chat_window_open_save.clone();
     btn_file.connect_clicked(clone!(
-        #[strong] pre_send_files_model,
         #[weak] chat_window_open_save,
         move|_|{
 
@@ -218,7 +175,6 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
             );
 
         let pre_send_files_open_file = pre_send_files_open_file.clone();
-        let pre_send_files_model = pre_send_files_model.clone();
         let file_chooser_tmp = file_chooser.clone();
         file_chooser.connect_response(move |d: &gtk::FileChooserDialog, response: gtk::ResponseType| {
             if response == gtk::ResponseType::Ok {
@@ -248,8 +204,7 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
                 };
                 let ref mut files_add = *pre_send_files_open_file.borrow_mut();
                 files_add.push(file_info.clone());//添加待发送文件
-                //pre_send_files_model.insert_with_values(None, &[0, 1], &[&&name, &format!("{}", &file_info.file_id)]);
-                pre_send_files_model.insert_with_values(None, &[(0, &&name), (1, &format!("{}", &file_info.file_id))]);
+                append_queued_file(&list_box_presend, &pre_send_files_open_file, file_info);
             }
             d.close();
         });
@@ -259,7 +214,6 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
 
     let chat_window_open_save = chat_window_open_save.clone();
     btn_dir.connect_clicked(clone!(
-        #[strong] pre_send_files_model,
         #[strong] pre_send_files,
         #[weak] chat_window_open_save,
         move|_|{
@@ -270,7 +224,6 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
                 &[("选择文件夹", gtk::ResponseType::Ok), ("取消", gtk::ResponseType::Cancel)],
             );
         let pre_send_files_open_dir = pre_send_files.clone();
-        let pre_send_files_model = pre_send_files_model.clone();
         let file_chooser_tmp = file_chooser.clone();
         file_chooser.connect_response(move |d: &gtk::FileChooserDialog, response: gtk::ResponseType| {
                 if response == gtk::ResponseType::Ok {
@@ -300,7 +253,7 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
                     };
                     let ref mut files_add = *pre_send_files_open_dir.borrow_mut();
                     files_add.push(file_info.clone());//添加待发送文件
-                    pre_send_files_model.insert_with_values(None, &[(0, &name), (1, &format!("{}", &file_info.file_id))]);
+                    append_queued_file(&list_box_presend, &pre_send_files_open_dir, file_info);
                 }
                 d.close();
         });
@@ -332,7 +285,7 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
 fn add_path_to_send_list(
     path: PathBuf,
     files: &Arc<RefCell<Vec<model::FileInfo>>>,
-    list_model: &ListStore,
+    list_box: &ListBox,
 ) -> Result<(), String> {
     let metadata = fs::metadata(&path).map_err(|err| format!("{:?}: {}", path, err))?;
     let attr = if metadata.is_file() {
@@ -365,9 +318,52 @@ fn add_path_to_send_list(
         crtime: now.time(),
     };
 
-    files.borrow_mut().push(file_info);
-    list_model.insert_with_values(None, &[(0, &name), (1, &format!("{}", file_id))]);
+    append_queued_file(list_box, files, file_info);
     Ok(())
+}
+
+fn append_queued_file(
+    list_box: &ListBox,
+    files: &Arc<RefCell<Vec<model::FileInfo>>>,
+    file_info: model::FileInfo,
+) {
+    let file_id = file_info.file_id;
+    let row = ListBoxRow::new();
+    let content = GtkBox::new(Orientation::Horizontal, 8);
+    content.set_margin_top(4);
+    content.set_margin_bottom(4);
+    content.set_margin_start(6);
+    content.set_margin_end(6);
+
+    let label = Label::new(Some(&file_info.name));
+    label.set_xalign(0.0);
+    label.set_hexpand(true);
+    label.set_ellipsize(gtk::pango::EllipsizeMode::Middle);
+    label.set_tooltip_text(Some(&file_info.file_name.to_string_lossy()));
+    let cancel = Button::with_label("取消");
+    cancel.add_css_class("flat");
+    cancel.add_css_class("destructive-action");
+    cancel.set_tooltip_text(Some("从待发送列表中移除此项目"));
+    content.append(&label);
+    content.append(&cancel);
+    row.set_child(Some(&content));
+
+    files.borrow_mut().push(file_info);
+    cancel.connect_clicked(glib::clone!(
+        #[weak] row,
+        #[weak] list_box,
+        move |_| {
+            files.borrow_mut().retain(|file| file.file_id != file_id);
+            list_box.remove(&row);
+        }
+    ));
+    list_box.append(&row);
+}
+
+fn clear_queued_rows(list_box: &ListBox) {
+    while let Some(child) = list_box.first_child() {
+        list_box.remove(&child);
+    }
 }
 
 fn append_column(tree: &TreeView, id: i32, title: &str) {
