@@ -116,6 +116,13 @@ impl ManagerPool {
                         let mut tmp_file = p_file.clone();
                         tmp_file.status = 0;
                         lock.insert(tmp_file.file_info.file_id, tmp_file);
+                        if let Err(err) = GLOBLE_SENDER.send(ModelEvent::DownloadFailed {
+                            packet_id: file_info.packet_id,
+                            file_id: file_info.file_id,
+                            download_ip,
+                        }) {
+                            log::warn!("failed to report download failure: {}", err);
+                        }
                     }
 
                 }
