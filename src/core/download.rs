@@ -65,7 +65,19 @@ impl ManagerPool {
         let tmp = self.clone();
         thread::spawn(move || {
             let download_url = format!("{}:{}", download_ip, protocol::IPMSG_DEFAULT_PORT);
-            let is_ok = download(download_url, save_path, file_info.clone()).is_ok();
+            let progress_file = file_info.clone();
+            let progress_ip = download_ip.clone();
+            let is_ok = download_with_progress(download_url, save_path, file_info.clone(), move |transferred, total| {
+                if let Err(err) = GLOBLE_SENDER.send(ModelEvent::DownloadProgress {
+                    packet_id: progress_file.packet_id,
+                    file_id: progress_file.file_id,
+                    download_ip: progress_ip.clone(),
+                    transferred,
+                    total,
+                }) {
+                    log::warn!("failed to report download progress: {}", err);
+                }
+            }).is_ok();
             {
                 let mut lock = match tmp.file_pool.lock() {
                     Ok(lock) => lock,
@@ -106,6 +118,20 @@ pub struct PoolFile {
 }
 
 pub fn download<A: ToSocketAddrs, S: AsRef<Path>>(addr: A, to_path: S, r_file: ReceivedSimpleFileInfo) -> Result<()> {
+    download_with_progress(addr, to_path, r_file, |_, _| {})
+}
+
+fn download_with_progress<A, S, F>(
+    addr: A,
+    to_path: S,
+    r_file: ReceivedSimpleFileInfo,
+    mut progress: F,
+) -> Result<()>
+where
+    A: ToSocketAddrs,
+    S: AsRef<Path>,
+    F: FnMut(u64, u64),
+{
     info!("start download file");
     let file_type = r_file.attr as u32;
     if file_type == IPMSG_FILE_REGULAR {
@@ -129,7 +155,7 @@ pub fn download<A: ToSocketAddrs, S: AsRef<Path>>(addr: A, to_path: S, r_file: R
         file_location.push(r_file.name);
         let file_size = r_file.size;
         let mut buffer = BufReader::new(stream);
-        read_bytes_to_file(&mut buffer, file_size, &file_location)?;
+        read_bytes_to_file(&mut buffer, file_size, &file_location, &mut progress)?;
     }else if file_type == IPMSG_FILE_DIR {
         // The user-selected destination root is trusted, but every directory
         // created below it must remain a real directory, not a symlink.
@@ -195,7 +221,7 @@ pub fn download<A: ToSocketAddrs, S: AsRef<Path>>(addr: A, to_path: S, r_file: R
                     }
                 }
                 info!("receiving file {:?}", next_path);
-                let file_result = read_bytes_to_file(&mut buffer, file_size, &next_path);
+                let file_result = read_bytes_to_file(&mut buffer, file_size, &next_path, &mut progress);
                 next_path.pop();
                 file_result?;
             }else if cmd == IPMSG_FILE_RETPARENT {
@@ -337,21 +363,35 @@ fn create_transfer_file(file_path: &Path) -> Result<File> {
     Ok(file)
 }
 
-fn read_bytes_to_file(stream: &mut BufReader<TcpStream>, len: u64, file_path: &PathBuf) -> Result<()> {
+fn read_bytes_to_file<F>(
+    stream: &mut BufReader<TcpStream>,
+    len: u64,
+    file_path: &PathBuf,
+    progress: &mut F,
+) -> Result<()>
+where
+    F: FnMut(u64, u64),
+{
     let mut file = create_transfer_file(file_path)?;
     info!("file len {:?}", len);
 
-    // A TCP read may return fewer bytes than requested. Copy exactly the
-    // advertised payload length and report an early EOF as a failed download.
-    let mut limited_stream = stream.take(len);
-    let copied = std::io::copy(&mut limited_stream, &mut file)?;
-    if copied != len {
-        return Err(anyhow!(
-            "incomplete file transfer for {:?}: expected {} bytes, received {}",
-            file_path,
-            len,
-            copied
-        ));
+    let mut transferred = 0u64;
+    let mut buffer = [0u8; 64 * 1024];
+    while transferred < len {
+        let remaining = len - transferred;
+        let limit = std::cmp::min(remaining, buffer.len() as u64) as usize;
+        let count = stream.read(&mut buffer[..limit])?;
+        if count == 0 {
+            return Err(anyhow!(
+                "incomplete file transfer for {:?}: expected {} bytes, received {}",
+                file_path,
+                len,
+                transferred
+            ));
+        }
+        file.write_all(&buffer[..count])?;
+        transferred += count as u64;
+        progress(transferred, len);
     }
 
     file.flush()?;
