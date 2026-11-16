@@ -278,11 +278,9 @@ impl MainWindow {
                                         } else {
                                             ((transferred.saturating_mul(100) / total).min(100)) as i32
                                         };
-                                        let status = if total == 0 {
-                                            format!("已接收 {}", crate::ui::chat_window::format_file_size(transferred))
-                                        } else {
-                                            format!("{}%", percent)
-                                        };
+                                        // The progress column already shows the percentage;
+                                        // keep the status column focused on the transfer state.
+                                        let status = "接收中";
                                         store.set_value(&iter, 7, &percent.to_value());
                                         store.set_value(&iter, 8, &status.to_value());
                                         break;
