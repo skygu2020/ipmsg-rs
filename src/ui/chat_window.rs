@@ -96,7 +96,7 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
             added > 0
         }
     ));
-    chat_window.add_controller(&drop_target);
+    chat_window.add_controller(drop_target);
 
     btn_send.connect_clicked(clone!(
         #[strong] pre_send_files_model,
