@@ -85,7 +85,8 @@ pub fn download<A: ToSocketAddrs, S: AsRef<Path>>(addr: A, to_path: S, r_file: R
     }
     let mut stream = TcpStream::connect(addr)?;
     let packet = Packet::new(IPMSG_SENDMSG| if file_type == IPMSG_FILE_DIR { IPMSG_GETDIRFILES } else { IPMSG_GETFILEDATA }, Some(format!("{:x}:{:x}:0:\u{0}", r_file.packet_id, r_file.file_id)));
-    stream.write(packet.to_string().as_bytes())?;
+    // TCP writes may be partial; ensure the complete request reaches the peer.
+    stream.write_all(packet.to_string().as_bytes())?;
     debug!("filetype {}", file_type);
     if file_type == IPMSG_FILE_REGULAR {
         let mut file_location = to_path.as_ref().to_path_buf();
