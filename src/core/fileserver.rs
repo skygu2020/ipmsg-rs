@@ -54,6 +54,16 @@ impl FileServer {
                         continue;
                     }
                 };
+                // Bound idle clients and peers that stop receiving data so a
+                // stalled transfer cannot hold a worker thread indefinitely.
+                if let Err(err) = stream_echo.set_read_timeout(Some(std::time::Duration::from_secs(30))) {
+                    info!("failed to configure file request read timeout for {:?}: {}", src, err);
+                    continue;
+                }
+                if let Err(err) = stream_echo.set_write_timeout(Some(std::time::Duration::from_secs(30))) {
+                    info!("failed to configure file transfer write timeout for {:?}: {}", src, err);
+                    continue;
+                }
                 let pool_tmp = pool_tmp.clone();
                 thread::spawn(move || {
                     let mut request = Vec::with_capacity(256);
