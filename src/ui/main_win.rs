@@ -243,8 +243,9 @@ impl MainWindow {
                     UiEvent::DisplayReceivedMsgInHis { from_ip, name, context, files } => {
                         match chat_windows.get(&from_ip) {
                             Some(win) => {
-                                let (_, mut his_end_iter) = win.his_view.buffer().bounds();
-                                win.his_view.buffer().insert(&mut his_end_iter, format!("{}:{}\n", name, context).as_str());
+                                crate::ui::chat_window::append_chat_message(
+                                    &win.history_list, &name, &context, false,
+                                );
 
                                 for file in &files {
                                     //win.received_store.insert_with_values(None, &[0, 1, 2, 3, 4, 5], &[&&file.name, &&file.file_id, &&file.packet_id, &&file.attr, &&file.size, &&file.mtime]);
