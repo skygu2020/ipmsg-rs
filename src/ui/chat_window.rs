@@ -1,6 +1,6 @@
 use gtk::prelude::*;
 use gtk::{
-    Window, ListStore, TreeView, TreeViewColumn, Builder, Button, TextView, WrapMode, ListBox, ListBoxRow, Label, Box as GtkBox, Orientation
+    CellRendererText, Window, ListStore, TreeView, TreeViewColumn, Builder, Button, TextView, WrapMode, ListBox, ListBoxRow, Label, Box as GtkBox, Orientation
 };
 use std::sync::Arc;
 use std::cell::RefCell;
