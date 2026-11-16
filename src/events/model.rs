@@ -23,7 +23,7 @@ pub fn model_run(socket: UdpSocket, ui_event_sender: Sender<UiEvent>) {
 
     file_server.run();
 
-    let download_pool: Arc<Mutex<HashMap<u32, PoolFile>>> = Arc::new(Mutex::new(HashMap::new()));
+    let download_pool: Arc<Mutex<HashMap<(String, u32, u32), PoolFile>>> = Arc::new(Mutex::new(HashMap::new()));
 
     let manager_pool = ManagerPool::new(download_pool);
 
