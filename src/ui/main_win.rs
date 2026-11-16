@@ -34,6 +34,22 @@ fn contact_display_name(raw: &str) -> String {
     name.to_owned()
 }
 
+fn contact_host(model: &ListStore, ip: &str) -> String {
+    let Some(mut iter) = model.iter_first() else {
+        return String::new();
+    };
+    loop {
+        let row_ip = model.get_value(&iter, 4).get::<String>().unwrap_or_default();
+        if row_ip == ip {
+            return model.get_value(&iter, 3).get::<String>().unwrap_or_default();
+        }
+        if !model.iter_next(&mut iter) {
+            break;
+        }
+    }
+    String::new()
+}
+
 pub struct MainWindow {}
 
 impl MainWindow {
@@ -176,7 +192,7 @@ impl MainWindow {
                     UiEvent::OpenOrReOpenChatWindow { name, ip } => {
                         info!("winds 的长度 {:?}", chat_windows.len());
                         if !chat_windows.contains_key(&ip) {
-                            let chat_win = crate::ui::chat_window::create_chat_window(name, ip.clone(), model.iter_first().map(|iter| model.get_value(&iter, 3).get::<String>().unwrap_or_default()).unwrap_or_default());
+                            let chat_win = crate::ui::chat_window::create_chat_window(name, ip.clone(), contact_host(&model, &ip));
                             chat_windows.insert(ip.clone(), chat_win);
                         }
                     }
@@ -251,7 +267,7 @@ impl MainWindow {
                         let display_name = contact_display_name(&name);
                         match chat_windows.get(&ip) {
                             Some(win) => {
-                                win.update_peer_identity(&display_name, &model.iter_first().map(|iter| model.get_value(&iter, 3).get::<String>().unwrap_or_default()).unwrap_or_default());
+                                win.update_peer_identity(&display_name, &contact_host(&model, &ip));
                                 win.win.show();
                             }
                             None => {
