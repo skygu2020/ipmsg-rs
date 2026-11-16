@@ -73,7 +73,13 @@ impl ManagerPool {
                 if let Some(p_file) = file.take() {
                     if is_ok {
                         lock.remove(&file_info.file_id);
-                        GLOBLE_SENDER.send(ModelEvent::RemoveDownloadTaskInPool{ packet_id: file_info.packet_id, file_id: file_info.file_id, download_ip }).expect("send RemoveDownloadTaskInPool fail!");
+                        if let Err(err) = GLOBLE_SENDER.send(ModelEvent::RemoveDownloadTaskInPool {
+                            packet_id: file_info.packet_id,
+                            file_id: file_info.file_id,
+                            download_ip,
+                        }) {
+                            log::error!("failed to report completed download: {}", err);
+                        }
                     }else{
                         let mut tmp_file = p_file.clone();
                         tmp_file.status = 0;
