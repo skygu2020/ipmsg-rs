@@ -198,7 +198,13 @@ impl FileServer {
                 }
             };
             let search_result = {
-                let search = pool_tmp.lock().unwrap();
+                let search = match pool_tmp.lock() {
+                    Ok(search) => search,
+                    Err(err) => {
+                        info!("file share pool lock poisoned: {}", err);
+                        return;
+                    }
+                };
                 search.iter().find(|s| s.packet_no == packet_id).cloned()
             };
             if let Some(result_share_file) = search_result {
