@@ -10,6 +10,25 @@ use crate::models::event::ModelEvent;
 use crate::core::GLOBLE_SENDER;
 use crate::models::event::UiEvent;
 
+// Some Windows installations expose generated host labels such as
+// "dell-<hex-id>-". Keep the real hostname in the host column, but avoid
+// showing the generated identifier as part of the contact's display name.
+fn contact_display_name(raw: &str) -> String {
+    let name = raw.split('\\0').next().unwrap_or("").trim();
+    if let Some(marker) = name.find("-<") {
+        if name.ends_with(">-") {
+            let identifier = &name[marker + 2..name.len() - 2];
+            if identifier.len() >= 8 && identifier.chars().all(|c| c.is_ascii_hexdigit()) {
+                let short_name = name[..marker].trim_end_matches('-').trim();
+                if !short_name.is_empty() {
+                    return short_name.to_owned();
+                }
+            }
+        }
+    }
+    name.to_owned()
+}
+
 pub struct MainWindow {}
 
 impl MainWindow {
@@ -182,12 +201,7 @@ impl MainWindow {
                         }
                     }
                     UiEvent::UserListAddOne(income_user) => {
-                        let display_name = income_user.name
-                            .split('\0')
-                            .next()
-                            .unwrap_or("")
-                            .trim()
-                            .to_owned();
+                        let display_name = contact_display_name(&income_user.name);
 
                         // A peer can announce an updated display name after the
                         // initial discovery. Refresh the existing row instead of
@@ -229,12 +243,14 @@ impl MainWindow {
                         chat_windows.remove(&ip);
                     }
                     UiEvent::OpenOrReOpenChatWindow1 { name, ip, packet: _ } => {
+                        let display_name = contact_display_name(&name);
                         match chat_windows.get(&ip) {
                             Some(win) => {
+                                win.update_peer_name(&display_name);
                                 win.win.show();
                             }
                             None => {
-                                let chat_win = crate::ui::chat_window::create_chat_window(name, ip.clone());
+                                let chat_win = crate::ui::chat_window::create_chat_window(display_name, ip.clone());
                                 chat_win.win.show();
                                 chat_windows.insert(ip.clone(), chat_win);
 
