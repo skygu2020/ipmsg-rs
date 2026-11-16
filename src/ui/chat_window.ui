@@ -108,7 +108,6 @@
                   <object class="GtkBox">
                     <property name="orientation">vertical</property>
                     <property name="spacing">8</property>
-                    <property name="padding">12</property>
                     <style><class name="card"/></style>
                     <child>
                       <object class="GtkScrolledWindow">
