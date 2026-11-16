@@ -55,6 +55,9 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
     append_column(&tree_view_presend, 0, "待发送文件");
     append_column(&tree_view_received, 0, "收到的文件");
 
+    tree_view_presend.set_tooltip_text(Some("可将文件或文件夹拖放到此处添加到待发送列表"));
+
+
     let btn_clear: Button = builder.object("btn_clear").unwrap();
     let btn_send: Button = builder.object("btn_send").unwrap();//btn_file
     let btn_file: Button = builder.object("btn_file").unwrap();
@@ -69,6 +72,32 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
     let pre_received_files_model = create_and_fill_model1();
     tree_view_received.set_model(Some(&pre_received_files_model));
     let files_send_clone = pre_send_files.clone();
+    // Accept one or more local files/directories dragged from the file manager.
+    // GTK 4.6+ exposes dropped file collections through GdkFileList.
+    let drop_target = gtk::DropTarget::new(gdk::FileList::static_type(), gdk::DragAction::COPY);
+    drop_target.connect_drop(clone!(
+        #[strong] pre_send_files,
+        #[strong] pre_send_files_model,
+        move |_, value, _, _| {
+            let Ok(file_list) = value.get::<gdk::FileList>() else {
+                return false;
+            };
+
+            let mut added = 0usize;
+            for file in file_list.files() {
+                let Some(path) = file.path() else {
+                    continue;
+                };
+                match add_path_to_send_list(path, &pre_send_files, &pre_send_files_model) {
+                    Ok(()) => added += 1,
+                    Err(err) => log::warn!("无法添加拖放项目: {}", err),
+                }
+            }
+            added > 0
+        }
+    ));
+    chat_window.add_controller(&drop_target);
+
     btn_send.connect_clicked(clone!(
         #[strong] pre_send_files_model,
         #[strong] host_ip,
@@ -260,6 +289,47 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
     let clone_chat = chat_window.clone();
     let clone_hist_view = text_view_history.clone();
     ChatWindow{ win: clone_chat, his_view:  clone_hist_view, ip: host_ip, pre_send_files, received_store: pre_received_files_model}
+}
+
+fn add_path_to_send_list(
+    path: PathBuf,
+    files: &Arc<RefCell<Vec<model::FileInfo>>>,
+    list_model: &ListStore,
+) -> Result<(), String> {
+    let metadata = fs::metadata(&path).map_err(|err| format!("{:?}: {}", path, err))?;
+    let attr = if metadata.is_file() {
+        crate::constants::protocol::IPMSG_FILE_REGULAR
+    } else if metadata.is_dir() {
+        crate::constants::protocol::IPMSG_FILE_DIR
+    } else {
+        return Err(format!("不支持的文件类型: {:?}", path));
+    };
+
+    let name = path.file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| format!("文件名无法按 UTF-8 显示: {:?}", path))?
+        .to_owned();
+    let now = Local::now();
+    let modified = metadata.modified().unwrap_or_else(|_| std::time::SystemTime::now());
+    let modified_time = crate::util::system_time_to_date_time(modified)
+        .with_timezone(&Local)
+        .time();
+    let file_id = (now.timestamp() as u32).wrapping_add(files.borrow().len() as u32);
+
+    let file_info = model::FileInfo {
+        file_id,
+        file_name: path,
+        name: name.clone(),
+        attr: attr as u8,
+        size: metadata.len(),
+        mtime: modified_time,
+        atime: now.time(),
+        crtime: now.time(),
+    };
+
+    files.borrow_mut().push(file_info);
+    list_model.insert_with_values(None, &[(0, &name), (1, &format!("{}", file_id))]);
+    Ok(())
 }
 
 fn append_column(tree: &TreeView, id: i32, title: &str) {
