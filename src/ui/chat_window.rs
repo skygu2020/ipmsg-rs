@@ -81,7 +81,6 @@ pub fn create_chat_window<S: Into<String>>(name: S, host_ip: S, host_name: S) ->
     let tree_view_received: TreeView = builder.object("tree_view_received").unwrap();
 
     text_view_presend.set_wrap_mode(WrapMode::WordChar);
-    text_view_presend.add_css_class("composer-text");
     tree_view_received.set_headers_visible(true);
     tree_view_received.set_enable_search(true);
     tree_view_received.set_search_column(0);
@@ -614,7 +613,7 @@ fn install_chat_message_styles(window: &Window) {
          .message-bubble { border-radius: 16px; padding: 10px 14px; }\
          .message-incoming { background-color: @card_bg_color; }\
          .message-outgoing { background-color: alpha(@accent_bg_color, 0.18); }\
-         textview.composer-text { padding-top: 4px; padding-bottom: 4px; }"
+"
     );
     gtk::style_context_add_provider_for_display(
         &display,
