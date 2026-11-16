@@ -83,7 +83,7 @@ impl FileServer {
             {
                 let search = pool_tmp.lock().unwrap();
                 let ref vec: Vec<ShareInfo> = *search;
-                let result = vec.iter().find(|ref s| s.packet_no == packet_id);
+                let result = vec.iter().find(|s| s.packet_no == packet_id);
                 search_result = result.cloned();
             }
             if let Some(result_share_file) = search_result {
@@ -101,9 +101,29 @@ impl FileServer {
         let file_attr = ext_str.splitn(4, |c| c == ':').into_iter().filter(|x: &&str| !x.is_empty()).collect::<Vec<&str>>();
         info!("file packet parse {:?}", file_attr);
         if file_attr.len() >= 3 {
-            let packet_id = i64::from_str_radix(file_attr[0], 16).unwrap() as u32;
-            let file_id = i64::from_str_radix(file_attr[1], 16).unwrap();
-            let offset = file_attr[2].parse::<u32>().unwrap();
+            let packet_id = match u32::from_str_radix(file_attr[0], 16) {
+                Ok(value) => value,
+                Err(err) => {
+                    info!("invalid file request packet id {:?}: {}", file_attr[0], err);
+                    return;
+                }
+            };
+            let file_id = match u32::from_str_radix(file_attr[1], 16) {
+                Ok(value) => value,
+                Err(err) => {
+                    info!("invalid file request file id {:?}: {}", file_attr[1], err);
+                    return;
+                }
+            };
+            // The offset is a decimal byte count in GETFILEDATA requests.
+            // Use u64 so files larger than 4 GiB can be resumed.
+            let offset = match file_attr[2].parse::<u64>() {
+                Ok(value) => value,
+                Err(err) => {
+                    info!("invalid file request offset {:?}: {}", file_attr[2], err);
+                    return;
+                }
+            };
             let mut search_result: Option<ShareInfo> = Option::None;
             {
                 let search = pool_tmp.lock().unwrap();
@@ -112,7 +132,7 @@ impl FileServer {
                 search_result = result.cloned();
             }
             if let Some(result_share_file) = search_result {
-                let file_info = result_share_file.file_info.iter().find(|f| f.file_id == file_id as u32);
+                let file_info = result_share_file.file_info.iter().find(|f| f.file_id == file_id);
                 if let Some(file_info) = file_info {
                     // IPMSG_GETFILEDATA carries the byte offset in the third
                     // field. Honour it so clients can resume an interrupted transfer.
@@ -123,7 +143,7 @@ impl FileServer {
                             return;
                         }
                     };
-                    if let Err(err) = f.seek(SeekFrom::Start(offset as u64)) {
+                    if let Err(err) = f.seek(SeekFrom::Start(offset)) {
                         info!("failed to seek shared file {:?} to {}: {}", file_info.file_name, offset, err);
                         return;
                     }
