@@ -15,6 +15,32 @@ use crate::constants::protocol::{self, IPMSG_BR_ENTRY, IPMSG_BROADCASTOPT, IPMSG
 use crate::core::{GLOBLE_RECEIVER, GLOBLE_SENDER};
 use crate::util::packet_parser;
 
+// Parse the key/value identity block used by newer IP Messenger clients.
+// UN is the generated account identifier; NN is the human-readable nickname.
+fn parse_entry_identity(extension: &str, sender_name: &str) -> (String, String) {
+    let mut parts = extension.splitn(2, '\0');
+    let legacy_name = parts.next().unwrap_or("").trim();
+    let metadata = parts.next().unwrap_or("").trim_matches(|c| c == '\0' || c == '\r' || c == '\n');
+
+    let mut nickname = None;
+    let mut group = String::new();
+    for line in metadata.lines() {
+        if let Some((key, value)) = line.trim().split_once(':') {
+            let value = value.trim();
+            match key.trim() {
+                "NN" if !value.is_empty() => nickname = Some(value.to_owned()),
+                "GN" => group = value.to_owned(),
+                _ => {}
+            }
+        }
+    }
+
+    let name = nickname
+        .or_else(|| if !legacy_name.is_empty() { Some(legacy_name.to_owned()) } else { None })
+        .unwrap_or_else(|| sender_name.trim().to_owned());
+    (name, group)
+}
+
 pub fn model_run(socket: UdpSocket, ui_event_sender: Sender<UiEvent>) {
 
     let file_pool: Arc<Mutex<Vec<ShareInfo>>> = Arc::new(Mutex::new(Vec::new()));
@@ -193,11 +219,8 @@ fn model_packet_dispatcher(packet: Packet) {
             log::warn!("failed to dispatch model event: {}", err);
         }
     }else if cmd == protocol::IPMSG_BR_ENTRY {//收到上线通知消息
-        // IPMSG_BR_ENTRY 的扩展段使用 NUL 分隔用户名和用户组，
-        // 不是冒号分隔。第二段可能带有兼容客户端附加的换行。
-        let mut ext_parts = extstr.splitn(2, '\0');
-        let announced_name = ext_parts.next().unwrap_or("").trim();
-        let group_name = ext_parts.next().unwrap_or("").trim_start_matches(|c| c == '\r' || c == '\n').trim().to_owned();
+        // Prefer NN (display nickname) over UN (generated user identifier).
+        let (user_name, group_name) = parse_entry_identity(&extstr, &packet.sender_name);
         let ansentry_packet = Packet::new(protocol::IPMSG_ANSENTRY, None);
 
         let user_name = if announced_name.is_empty() {
