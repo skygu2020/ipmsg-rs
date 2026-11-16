@@ -169,17 +169,11 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
             let host_ip = host_ip.clone();
             file_chooser.connect_response(move |d: &gtk::FileChooserDialog, response: gtk::ResponseType| {
                 if response == gtk::ResponseType::Ok {
-                    let Some(file) = d.file() else {
+                    let Some(save_base_path) = selected_local_path(d) else {
                         log::warn!("未能获取保存目录");
                         d.close();
                         return;
                     };
-                    let Some(save_base_path) = file.path() else {
-                        log::warn!("所选保存位置不是本地文件系统路径");
-                        d.close();
-                        return;
-                    };
-                    let save_base_path: PathBuf = save_base_path;
                     info!("choosed {:?} {:?} {:?} {:?} {:?}", name, fid, pid, save_base_path, file_type);
                     if let Err(err) = GLOBLE_SENDER.send(ModelEvent::PutDownloadTaskInPool{ file: ReceivedSimpleFileInfo{
                         file_id: fid,
@@ -224,7 +218,7 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
         let list_box_presend = list_box_presend.clone();
         file_chooser.connect_response(move |d: &gtk::FileChooserDialog, response: gtk::ResponseType| {
             if response == gtk::ResponseType::Ok {
-                let Some(filename) = d.file().and_then(|file| file.path()) else {
+                let Some(filename) = selected_local_path(d) else {
                     log::warn!("未能获取所选文件的本地路径");
                     d.close();
                     return;
@@ -363,6 +357,20 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
         pre_send_files,
         received_store: pre_received_files_model,
     }
+}
+
+/// Resolve the chooser selection through both GTK FileChooser accessors.
+/// Some GTK backends expose the selected item in the files model even when
+/// the single-file convenience accessor temporarily returns None.
+fn selected_local_path(chooser: &gtk::FileChooserDialog) -> Option<PathBuf> {
+    chooser.file()
+        .and_then(|file| file.path())
+        .or_else(|| {
+            chooser.files()
+                .item(0)
+                .and_then(|item| item.downcast::<gio::File>().ok())
+                .and_then(|file| file.path())
+        })
 }
 
 fn add_path_to_send_list(
