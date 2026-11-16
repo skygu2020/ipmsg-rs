@@ -429,6 +429,15 @@ pub fn make_header(path: &PathBuf, ret_parent: bool) -> std::io::Result<String> 
                 std::io::ErrorKind::InvalidData,
                 format!("shared filename is not valid UTF-8: {:?}", path),
             ))?;
+        // The directory-transfer header uses ':' as a field separator, and
+        // the receiver rejects it in names. Fail before emitting a malformed
+        // header that would desynchronise the remaining TCP stream.
+        if file_name.is_empty() || file_name.contains([':', '\0']) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!("shared filename cannot be represented in an IPMSG header: {:?}", path),
+            ));
+        }
         header.push_str(file_name);
         let file_attr = if path_metadata.file_type().is_dir() {
             protocol::IPMSG_FILE_DIR
