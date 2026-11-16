@@ -152,6 +152,13 @@ fn model_event_loop(socket: UdpSocket, ui_event_sender: Sender<UiEvent>, file_se
                         log::warn!("failed to forward download progress: {}", err);
                     }
                 }
+                ModelEvent::DownloadFailed { packet_id, file_id, download_ip } => {
+                    if let Err(err) = ui_event_sender.try_send(UiEvent::DownloadFailed {
+                        packet_id, file_id, download_ip
+                    }) {
+                        log::warn!("failed to forward download failure: {}", err);
+                    }
+                }
                 ModelEvent::RemoveDownloadTaskInPool {packet_id, file_id, download_ip } => {
                     ui_event_sender.try_send(UiEvent::RemoveInReceivedList{
                         packet_id,
