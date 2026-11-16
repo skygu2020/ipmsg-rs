@@ -193,19 +193,17 @@ fn model_packet_dispatcher(packet: Packet) {
             log::warn!("failed to dispatch model event: {}", err);
         }
     }else if cmd == protocol::IPMSG_BR_ENTRY {//收到上线通知消息
-        // 扩展段 用户名|用户组
-        let ext_vec = extstr.splitn(2, |c| c == ':').collect::<Vec<&str>>();
+        // IPMSG_BR_ENTRY 的扩展段使用 NUL 分隔用户名和用户组，
+        // 不是冒号分隔。第二段可能带有兼容客户端附加的换行。
+        let mut ext_parts = extstr.splitn(2, '\0');
+        let announced_name = ext_parts.next().unwrap_or("").trim();
+        let group_name = ext_parts.next().unwrap_or("").trim_start_matches(['\\r', '\\n']).trim().to_owned();
         let ansentry_packet = Packet::new(protocol::IPMSG_ANSENTRY, None);
 
-        let group_name = if ext_vec.len() > 2 {
-            ext_vec[1].to_owned()
-        }else {
-            "".to_owned()
-        };
-        let user_name = if ext_vec.len() > 1&& !ext_vec[0].is_empty() {
-            ext_vec[0].to_owned()
-        }else {
-            packet.sender_name.clone()
+        let user_name = if announced_name.is_empty() {
+            packet.sender_name.trim().to_owned()
+        } else {
+            announced_name.to_owned()
         };
 
         let user = User::new(user_name, (&packet).sender_host.to_owned(), (&packet).ip.to_owned(), group_name);
