@@ -548,6 +548,8 @@ fn append_column(tree: &TreeView, id: i32, title: &str) {
         column.set_expand(false);
     } else if id == 8 {
         cell.set_xalign(0.0);
+        // Clip changing status labels cleanly when the new text is shorter.
+        cell.set_ellipsize(gtk::pango::EllipsizeMode::End);
         column.set_sizing(gtk::TreeViewColumnSizing::Fixed);
         column.set_fixed_width(92);
         column.set_expand(false);
