@@ -55,11 +55,19 @@ pub fn create_chat_window<S: Into<String>>(name: S, host_ip: S, host_name: S) ->
     chat_window.set_title(Some(chat_title));
     install_chat_message_styles(&chat_window);
 
-    // Show the actual peer identity in the in-window conversation header too.
-    let conversation_title: Label = builder.object("conversation_title").unwrap();
-    conversation_title.set_text(&name);
-    let conversation_subtitle: Label = builder.object("conversation_subtitle").unwrap();
-    conversation_subtitle.set_text(&format!("主机名：{} · {}", host_name, host_ip));
+    // Use the same GTK client-side title bar as the main window.
+    chat_window.add_css_class("main-window");
+    let header_bar = gtk::HeaderBar::new();
+    let title_box = GtkBox::new(Orientation::Vertical, 0);
+    let conversation_title = Label::new(Some(&name));
+    conversation_title.add_css_class("title");
+    let conversation_subtitle = Label::new(Some(&format!("主机名：{} · {}", host_name, host_ip)));
+    conversation_subtitle.add_css_class("dim-label");
+    conversation_subtitle.add_css_class("caption");
+    title_box.append(&conversation_title);
+    title_box.append(&conversation_subtitle);
+    header_bar.set_title_widget(Some(&title_box));
+    chat_window.set_titlebar(Some(&header_bar));
     // chat_window.set_border_width(5);
     // 消息历史使用独立行和气泡布局。
     let history_list: ListBox = builder.object("history_list").unwrap();
