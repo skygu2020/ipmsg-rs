@@ -145,7 +145,13 @@ impl MainWindow {
                         }
                         if !in_flag {
                             //model.insert_with_values(None, &[0, 1, 2, 3], &[&&income_user.name, &&income_user.group, &&income_user.host, &&income_user.ip]);
-                            model.insert_with_values(None, &[(0, &"face-smile"), (1, &&income_user.name), (2, &&income_user.group), (3, &&income_user.host), (4, &&income_user.ip)]);
+                            let display_name = income_user.name
+                                .split('\0')
+                                .next()
+                                .unwrap_or("")
+                                .trim()
+                                .to_owned();
+                            model.insert_with_values(None, &[(0, &"face-smile"), (1, &display_name), (2, &&income_user.group), (3, &&income_user.host), (4, &&income_user.ip)]);
                         }
                     }
                     UiEvent::CloseChatWindow(ip) => {
