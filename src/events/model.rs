@@ -223,12 +223,6 @@ fn model_packet_dispatcher(packet: Packet) {
         let (user_name, group_name) = parse_entry_identity(&extstr, &packet.sender_name);
         let ansentry_packet = Packet::new(protocol::IPMSG_ANSENTRY, None);
 
-        let user_name = if announced_name.is_empty() {
-            packet.sender_name.trim().to_owned()
-        } else {
-            announced_name.to_owned()
-        };
-
         let user = User::new(user_name, (&packet).sender_host.to_owned(), (&packet).ip.to_owned(), group_name);
         info!("{user:?}");
         if let Err(err) = GLOBLE_SENDER.send(ModelEvent::RecOnlineMsgReply{packet: ansentry_packet, from_user: user}) {
