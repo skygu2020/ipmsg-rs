@@ -4,7 +4,6 @@ use async_channel::{Sender, Receiver};
 use gtk::prelude::*;
 use gtk::{CellRendererPixbuf, CellRendererText, Label, ListStore, ScrolledWindow, TreeView, TreeViewColumn};
 use log::info;
-use glib::clone;
 use crate::ui::chat_window::ChatWindow;
 use crate::events::model::model_run;
 use crate::models::event::ModelEvent;
@@ -24,18 +23,23 @@ impl MainWindow {
         // window.set_position(gtk::WindowPosition::Center);
         window.set_default_size(200, 500);
         window.set_resizable(false);
-        /*window.connect_delete_event(clone!(@weak window => @default-return Inhibit(false), move |_, _| {
+        /*window.connect_delete_event(clone!(
+        #[weak] window,
+        #[upgrade_or]
+        Inhibit(false),
+        move |_, _| {
             unsafe {
                 &window.destroy();
             }
             return Inhibit(false);
-        }));*/
-        window.connect_close_request(clone!(@strong tx => @default-return glib::signal::Inhibit(false), move |win| {
+        },
+    ));*/
+        window.connect_close_request(move |win| {
             if let Some(application) = win.application() {
                 application.remove_window(win);
             }
             glib::Propagation::Stop
-        }));
+        });
 
         //纵向
         let v_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
