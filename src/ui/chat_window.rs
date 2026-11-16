@@ -64,6 +64,7 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
 
     list_box_presend.set_selection_mode(gtk::SelectionMode::None);
     list_box_presend.set_tooltip_text(Some("可将文件或文件夹拖放到此处添加到待发送列表"));
+    show_queued_files_empty_state(&list_box_presend);
 
 
     let btn_clear: Button = builder.object("btn_clear").unwrap();
@@ -361,6 +362,11 @@ fn append_queued_file(
     file_info: model::FileInfo,
 ) {
     let file_id = file_info.file_id;
+    if let Some(child) = list_box.first_child() {
+        if child.widget_name() == "queued-files-empty" {
+            list_box.remove(&child);
+        }
+    }
     let row = ListBoxRow::new();
     let content = GtkBox::new(Orientation::Horizontal, 8);
     content.set_margin_top(4);
@@ -414,6 +420,9 @@ fn append_queued_file(
         move |_| {
             files_for_cancel.borrow_mut().retain(|file| file.file_id != file_id);
             list_box.remove(&row);
+            if list_box.first_child().is_none() {
+                show_queued_files_empty_state(&list_box);
+            }
         }
     ));
     list_box.append(&row);
@@ -438,6 +447,26 @@ fn clear_queued_rows(list_box: &ListBox) {
     while let Some(child) = list_box.first_child() {
         list_box.remove(&child);
     }
+    show_queued_files_empty_state(list_box);
+}
+
+fn show_queued_files_empty_state(list_box: &ListBox) {
+    let row = ListBoxRow::new();
+    row.set_selectable(false);
+    row.set_activatable(false);
+    row.set_widget_name("queued-files-empty");
+
+    let message = Label::new(Some("暂无待发送文件\n拖放文件到这里，或点击上方按钮添加"));
+    message.set_xalign(0.5);
+    message.set_justify(gtk::Justification::Center);
+    message.set_wrap(true);
+    message.set_margin_top(18);
+    message.set_margin_bottom(18);
+    message.set_margin_start(10);
+    message.set_margin_end(10);
+    message.add_css_class("dim-label");
+    row.set_child(Some(&message));
+    list_box.append(&row);
 }
 
 fn append_column(tree: &TreeView, id: i32, title: &str) {
