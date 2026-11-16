@@ -176,7 +176,7 @@ impl MainWindow {
                     UiEvent::DisplayReceivedMsgInHis { from_ip, name, context, files } => {
                         match chat_windows.get(&from_ip) {
                             Some(win) => {
-                                let (his_start_iter, mut his_end_iter) = win.his_view.buffer().bounds();
+                                let (_, mut his_end_iter) = win.his_view.buffer().bounds();
                                 win.his_view.buffer().insert(&mut his_end_iter, format!("{}:{}\n", name, context).as_str());
 
                                 for file in &files {
