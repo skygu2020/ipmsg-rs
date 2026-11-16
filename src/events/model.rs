@@ -61,7 +61,7 @@ pub fn model_run(socket: UdpSocket, ui_event_sender: Sender<UiEvent>) {
 }
 
 pub fn send_ipmsg_br_entry() {
-    let packet = Packet::new(IPMSG_BR_ENTRY|IPMSG_BROADCASTOPT, Some(format!("{}\0\n{}", *protocol::HOST_NAME, *protocol::HOST_NAME)));
+    let packet = Packet::new(IPMSG_BR_ENTRY|IPMSG_BROADCASTOPT, Some(format!("{}\0\n{}", *protocol::USER_NAME, *protocol::HOST_NAME)));
     GLOBLE_SENDER.send(ModelEvent::BroadcastEntry(packet)).unwrap();
 }
 
