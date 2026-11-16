@@ -234,7 +234,7 @@ impl MainWindow {
                         match chat_windows.get(&to_ip) {
                             Some(win) => {
                                 crate::ui::chat_window::append_chat_message(
-                                    &win.history_list, "我", &context, true,
+                                    &win.history_list, &win.history_scroller, "我", &context, true,
                                 );
                             }
                             None => {}
@@ -244,7 +244,7 @@ impl MainWindow {
                         match chat_windows.get(&from_ip) {
                             Some(win) => {
                                 crate::ui::chat_window::append_chat_message(
-                                    &win.history_list, &name, &context, false,
+                                    &win.history_list, &win.history_scroller, &name, &context, false,
                                 );
 
                                 for file in &files {
