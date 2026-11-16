@@ -273,7 +273,7 @@ pub fn make_header(path: &PathBuf, ret_parent: bool) -> std::io::Result<String> 
     header.push(IPMSG_PACKET_DELIMITER);
 
     let (file_size, file_attr) = if ret_parent {
-        header.push_str(REPARENT_PATH);
+        header.push(REPARENT_PATH);
         (0, protocol::IPMSG_FILE_RETPARENT)
     } else {
         let path_metadata: Metadata = fs::symlink_metadata(path)?;
