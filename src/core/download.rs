@@ -194,8 +194,33 @@ fn read_bytes(stream: &mut BufReader<TcpStream>, len: u64) -> Result<String> {
         .map_err(|err| anyhow!("invalid GB18030 directory header: {:?}", err))?)
 }
 
+// Replace an existing regular file without ever opening a symlink target.
+// create_new is atomic: if another process creates any entry after removal,
+// the operation fails rather than following or truncating that entry.
+fn create_transfer_file(file_path: &Path) -> Result<File> {
+    match fs::symlink_metadata(file_path) {
+        Ok(metadata) => {
+            if metadata.file_type().is_symlink() || !metadata.file_type().is_file() {
+                return Err(anyhow!(
+                    "download destination is not a regular file: {:?}",
+                    file_path
+                ));
+            }
+            fs::remove_file(file_path)?;
+        }
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+        Err(err) => return Err(err.into()),
+    }
+
+    let file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(file_path)?;
+    Ok(file)
+}
+
 fn read_bytes_to_file(stream: &mut BufReader<TcpStream>, len: u64, file_path: &PathBuf) -> Result<()> {
-    let mut file = File::create(file_path)?;
+    let mut file = create_transfer_file(file_path)?;
     info!("file len {:?}", len);
 
     // A TCP read may return fewer bytes than requested. Copy exactly the
