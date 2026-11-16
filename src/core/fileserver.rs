@@ -3,7 +3,7 @@ use std::sync::{Mutex, Arc};
 use std::net::{TcpStream, TcpListener};
 use std::thread;
 use std::io::{Read, Write, BufWriter, Seek, SeekFrom};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::fs::{self, File, Metadata};
 use encoding::{Encoding, DecoderTrap};
 use encoding::all::GB18030;
@@ -212,10 +212,10 @@ impl FileServer {
                 if let Some(file_info) = file_info {
                     // IPMSG_GETFILEDATA carries the byte offset in the third
                     // field. Honour it so clients can resume an interrupted transfer.
-                    let mut f = match File::open(&file_info.file_name) {
+                    let mut f = match open_regular_file(&file_info.file_name) {
                         Ok(file) => file,
                         Err(err) => {
-                            info!("failed to open shared file {:?}: {}", file_info.file_name, err);
+                            info!("failed to safely open shared file {:?}: {}", file_info.file_name, err);
                             return;
                         }
                     };
@@ -251,6 +251,53 @@ impl FileServer {
     }
 }
 
+// Open only a regular file and verify that the opened handle still refers
+// to the same filesystem object observed by symlink_metadata. This closes
+// the check/open symlink-swap window on Unix without adding platform crates.
+fn open_regular_file(path: &Path) -> std::io::Result<File> {
+    let path_metadata = fs::symlink_metadata(path)?;
+    if !path_metadata.file_type().is_file() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("shared path is not a regular file: {:?}", path),
+        ));
+    }
+
+    let file = File::open(path)?;
+    let file_metadata = file.metadata()?;
+    if !file_metadata.file_type().is_file() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("opened shared path is not a regular file: {:?}", path),
+        ));
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        if path_metadata.dev() != file_metadata.dev() || path_metadata.ino() != file_metadata.ino() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("shared file changed while opening: {:?}", path),
+            ));
+        }
+    }
+
+    #[cfg(not(unix))]
+    {
+        // Portable fallback: reject obvious replacements. Unix additionally
+        // compares device/inode identifiers for a stronger identity check.
+        if path_metadata.len() != file_metadata.len() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("shared file changed while opening: {:?}", path),
+            ));
+        }
+    }
+
+    Ok(file)
+}
+
 //send dir
 pub fn send_dir(root_path: &PathBuf, buffer: &mut BufWriter<TcpStream>) -> std::io::Result<()> {
     let root_metadata = fs::symlink_metadata(root_path)?;
@@ -281,7 +328,7 @@ pub fn send_dir(root_path: &PathBuf, buffer: &mut BufWriter<TcpStream>) -> std::
             buffer.write_all(util::utf8_to_gb18030(&header).as_slice())?;
             info!("{:?}", header);
 
-            let mut file = File::open(&sub)?;
+            let mut file = open_regular_file(&sub)?;
             let mut buf = [0; 16 * 1024];
             loop {
                 match file.read(&mut buf) {
