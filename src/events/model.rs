@@ -170,10 +170,14 @@ fn model_packet_dispatcher(packet: Packet) {
     let cmd = protocol::get_mode((&packet).command_no);
     if opt& protocol::IPMSG_SENDCHECKOPT != 0 {
         let recvmsg = Packet::new(protocol::IPMSG_RECVMSG, Some((&packet).packet_no.to_string()));
-        GLOBLE_SENDER.send(ModelEvent::RecMsgReply{packet: recvmsg, from_ip: (&packet).ip.to_owned()});
+        if let Err(err) = GLOBLE_SENDER.send(ModelEvent::RecMsgReply{packet: recvmsg, from_ip: (&packet).ip.to_owned()}) {
+            log::warn!("failed to dispatch model event: {}", err);
+        }
     }
     if cmd == protocol::IPMSG_BR_EXIT {//收到下线通知消息
-        GLOBLE_SENDER.send(ModelEvent::BroadcastExit((&packet).sender_host.to_owned()));
+        if let Err(err) = GLOBLE_SENDER.send(ModelEvent::BroadcastExit((&packet).sender_host.to_owned())) {
+            log::warn!("failed to dispatch model event: {}", err);
+        }
     }else if cmd == protocol::IPMSG_BR_ENTRY {//收到上线通知消息
         // 扩展段 用户名|用户组
         let ext_vec = extstr.splitn(2, |c| c == ':').collect::<Vec<&str>>();
@@ -192,10 +196,14 @@ fn model_packet_dispatcher(packet: Packet) {
 
         let user = User::new(user_name, (&packet).sender_host.to_owned(), (&packet).ip.to_owned(), group_name);
         info!("{user:?}");
-        GLOBLE_SENDER.send(ModelEvent::RecOnlineMsgReply{packet: ansentry_packet, from_user: user});
+        if let Err(err) = GLOBLE_SENDER.send(ModelEvent::RecOnlineMsgReply{packet: ansentry_packet, from_user: user}) {
+            log::warn!("failed to dispatch model event: {}", err);
+        }
     }else if cmd == protocol::IPMSG_ANSENTRY {//通报新上线
         let user = User::new((&packet).sender_name.to_owned(), (&packet).sender_host.to_owned(), (&packet).ip.to_owned(), "".to_owned());
-        GLOBLE_SENDER.send(ModelEvent::NotifyOnline{user});
+        if let Err(err) = GLOBLE_SENDER.send(ModelEvent::NotifyOnline{user}) {
+            log::warn!("failed to dispatch model event: {}", err);
+        }
     }else if cmd == protocol::IPMSG_SENDMSG {//收到发送的消息
         //文字消息|文件扩展段
         let ext_vec = extstr.split('\0').collect::<Vec<&str>>();
