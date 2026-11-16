@@ -169,8 +169,17 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
             let host_ip = host_ip.clone();
             file_chooser.connect_response(move |d: &gtk::FileChooserDialog, response: gtk::ResponseType| {
                 if response == gtk::ResponseType::Ok {
-                    let file = d.file().expect("Couldn't get file");
-                    let save_base_path: PathBuf = file.path().expect("Couldn't get file path");
+                    let Some(file) = d.file() else {
+                        log::warn!("未能获取保存目录");
+                        d.close();
+                        return;
+                    };
+                    let Some(save_base_path) = file.path() else {
+                        log::warn!("所选保存位置不是本地文件系统路径");
+                        d.close();
+                        return;
+                    };
+                    let save_base_path: PathBuf = save_base_path;
                     info!("choosed {:?} {:?} {:?} {:?} {:?}", name, fid, pid, save_base_path, file_type);
                     if let Err(err) = GLOBLE_SENDER.send(ModelEvent::PutDownloadTaskInPool{ file: ReceivedSimpleFileInfo{
                         file_id: fid,
@@ -216,20 +225,37 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
         let list_box_presend = list_box_presend.clone();
         file_chooser.connect_response(move |d: &gtk::FileChooserDialog, response: gtk::ResponseType| {
             if response == gtk::ResponseType::Ok {
-                let filename: PathBuf = file_chooser_tmp.clone().file().unwrap().path().unwrap();
-                let metadata: Metadata = fs::metadata(&filename).unwrap();
+                let Some(filename) = d.file().and_then(|file| file.path()) else {
+                    log::warn!("未能获取所选文件的本地路径");
+                    d.close();
+                    return;
+                };
+                let metadata: Metadata = match fs::metadata(&filename) {
+                    Ok(metadata) => metadata,
+                    Err(err) => {
+                        log::warn!("无法读取文件信息 {:?}: {}", filename, err);
+                        d.close();
+                        return;
+                    }
+                };
                 let size = metadata.len();
                 let attr = if metadata.is_file() {
                     crate::constants::protocol::IPMSG_FILE_REGULAR
-                }else if metadata.is_dir() {
+                } else if metadata.is_dir() {
                     crate::constants::protocol::IPMSG_FILE_DIR
-                }else {
-                    panic!("oh no!");
+                } else {
+                    log::warn!("不支持的文件类型: {:?}", filename);
+                    d.close();
+                    return;
                 };
-                let modify_time: time::SystemTime = metadata.modified().unwrap();
+                let modify_time = metadata.modified().unwrap_or_else(|_| time::SystemTime::now());
                 let chrono_time = crate::util::system_time_to_date_time(modify_time);
                 let local_time = chrono_time.with_timezone(&::chrono::Local);
-                let name = filename.file_name().unwrap().to_str().unwrap();
+                let Some(name) = filename.file_name().and_then(|name| name.to_str()) else {
+                    log::warn!("文件名无法按 UTF-8 显示: {:?}", filename);
+                    d.close();
+                    return;
+                };
                 let file_info = model::FileInfo {
                     file_id: Local::now().timestamp() as u32,
                     file_name: filename.clone(),
@@ -265,20 +291,37 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
         let list_box_presend = list_box_presend.clone();
         file_chooser.connect_response(move |d: &gtk::FileChooserDialog, response: gtk::ResponseType| {
                 if response == gtk::ResponseType::Ok {
-                    let filename: PathBuf = file_chooser_tmp.file().unwrap().path().unwrap();
-                    let metadata: Metadata = fs::metadata(&filename).unwrap();
+                    let Some(filename) = d.file().and_then(|file| file.path()) else {
+                        log::warn!("未能获取所选文件夹的本地路径");
+                        d.close();
+                        return;
+                    };
+                    let metadata: Metadata = match fs::metadata(&filename) {
+                        Ok(metadata) => metadata,
+                        Err(err) => {
+                            log::warn!("无法读取文件夹信息 {:?}: {}", filename, err);
+                            d.close();
+                            return;
+                        }
+                    };
                     let size = metadata.len();
                     let attr = if metadata.is_file() {
                         crate::constants::protocol::IPMSG_FILE_REGULAR
-                    }else if metadata.is_dir() {
+                    } else if metadata.is_dir() {
                         crate::constants::protocol::IPMSG_FILE_DIR
-                    }else {
-                        panic!("oh no!");
+                    } else {
+                        log::warn!("不支持的文件类型: {:?}", filename);
+                        d.close();
+                        return;
                     };
-                    let modify_time: time::SystemTime = metadata.modified().unwrap();
+                    let modify_time = metadata.modified().unwrap_or_else(|_| time::SystemTime::now());
                     let chrono_time = crate::util::system_time_to_date_time(modify_time);
                     let local_time = chrono_time.with_timezone(&::chrono::Local);
-                    let name = filename.file_name().unwrap().to_str().unwrap();
+                    let Some(name) = filename.file_name().and_then(|name| name.to_str()) else {
+                        log::warn!("文件夹名称无法按 UTF-8 显示: {:?}", filename);
+                        d.close();
+                        return;
+                    };
                     let file_info = model::FileInfo {
                         file_id: Local::now().timestamp() as u32,
                         file_name: filename.clone(),
