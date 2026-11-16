@@ -81,6 +81,8 @@ pub fn create_chat_window<S: Into<String>>(name: S, host_ip: S, host_name: S) ->
     let tree_view_received: TreeView = builder.object("tree_view_received").unwrap();
 
     text_view_presend.set_wrap_mode(WrapMode::WordChar);
+    // Reserve a little extra ascent space for glyphs with tall ascenders (for example, lowercase 'f').
+    text_view_presend.set_pixels_above_lines(4);
     tree_view_received.set_headers_visible(true);
     tree_view_received.set_enable_search(true);
     tree_view_received.set_search_column(0);
