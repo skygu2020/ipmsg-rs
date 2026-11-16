@@ -3,7 +3,6 @@ use std::sync::{Arc, Mutex};
 use std::net::UdpSocket;
 use encoding::{DecoderTrap, Encoding};
 use encoding::all::GB18030;
-use chrono::prelude::*;
 use std::collections::HashMap;
 use async_channel::Sender;
 use log::{error, info};
@@ -176,7 +175,7 @@ fn model_packet_dispatcher(packet: Packet) {
     if cmd == protocol::IPMSG_BR_EXIT {//收到下线通知消息
         GLOBLE_SENDER.send(ModelEvent::BroadcastExit((&packet).sender_host.to_owned()));
     }else if cmd == protocol::IPMSG_BR_ENTRY {//收到上线通知消息
-        ///扩展段 用户名|用户组
+        // 扩展段 用户名|用户组
         let ext_vec = extstr.splitn(2, |c| c == ':').collect::<Vec<&str>>();
         let ansentry_packet = Packet::new(protocol::IPMSG_ANSENTRY, None);
 
@@ -203,7 +202,6 @@ fn model_packet_dispatcher(packet: Packet) {
         if opt& protocol::IPMSG_SECRETOPT != 0 {//是否是密封消息
             info!("i am secret message !");
         }
-        let msg_str = if ext_vec.len() > 0 { ext_vec[0] } else { "" };
         //文字消息内容|文件扩展
         let mut files_opt: Option<Vec<ReceivedSimpleFileInfo>> = None;
         if opt& protocol::IPMSG_FILEATTACHOPT != 0 {
@@ -224,7 +222,6 @@ fn model_packet_dispatcher(packet: Packet) {
                             mmtime_num = (mmtime_num as i64)/1000;
                         }
                         let file_attr = file_attr[4].parse::<u32>().unwrap();//文件属性
-                        let ntime = NaiveDateTime::from_timestamp(mmtime_num, 0);
                         if file_attr == protocol::IPMSG_FILE_REGULAR {
                             info!("i am ipmsg_file_regular");
                         }else if file_attr == protocol::IPMSG_FILE_DIR {
