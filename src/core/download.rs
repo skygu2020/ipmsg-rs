@@ -106,6 +106,13 @@ pub fn download<A: ToSocketAddrs, S: AsRef<Path>>(addr: A, to_path: S, r_file: R
             let context_len = header_size
                 .checked_sub(prefix_len + 1)
                 .ok_or_else(|| anyhow!("invalid directory header length: {}", header_size))?;
+            if context_len > MAX_DIRECTORY_HEADER_CONTEXT {
+                return Err(anyhow!(
+                    "directory header context exceeds {} bytes: {}",
+                    MAX_DIRECTORY_HEADER_CONTEXT,
+                    context_len
+                ));
+            }
             let header_context_str = read_bytes(&mut buffer, context_len)?;
             let v: Vec<&str> = header_context_str.splitn(4, |c| c == ':').collect();
             if v.len() < 3 {
@@ -206,20 +213,31 @@ fn validate_transfer_name(name: &str) -> Result<()> {
     Ok(())
 }
 
+const MAX_DIRECTORY_HEADER_PREFIX: usize = 200;
+const MAX_DIRECTORY_HEADER_CONTEXT: u64 = 64 * 1024;
+
 fn read_delimiter(stream: &mut BufReader<TcpStream>) -> Result<Option<String>> {
-    let mut buffer = Vec::new();
-    let len = stream.read_until(u8::try_from(IPMSG_PACKET_DELIMITER)?, &mut buffer)?;
-    if len == 0 {
-        return Ok(None);
-    }
-    if len > 200 {
-        return Err(anyhow!("directory header length prefix exceeds 200 bytes"));
-    }
-    if buffer.last().copied() != Some(u8::try_from(IPMSG_PACKET_DELIMITER)?) {
-        return Err(anyhow!("connection closed in the middle of a directory header"));
+    let delimiter = u8::try_from(IPMSG_PACKET_DELIMITER)?;
+    let mut buffer = Vec::with_capacity(8);
+    let mut byte = [0u8; 1];
+
+    loop {
+        match stream.read(&mut byte)? {
+            0 if buffer.is_empty() => return Ok(None),
+            0 => return Err(anyhow!("connection closed in the middle of a directory header length")),
+            _ if byte[0] == delimiter => break,
+            _ => {
+                if buffer.len() >= MAX_DIRECTORY_HEADER_PREFIX {
+                    return Err(anyhow!(
+                        "directory header length prefix exceeds {} bytes",
+                        MAX_DIRECTORY_HEADER_PREFIX
+                    ));
+                }
+                buffer.push(byte[0]);
+            }
+        }
     }
 
-    buffer.pop();
     Ok(Some(String::from_utf8(buffer)?))
 }
 
