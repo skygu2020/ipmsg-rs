@@ -2,7 +2,6 @@
 <interface>
   <requires lib="gtk" version="4.0"/>
   <object class="GtkTextBuffer" id="textbuffer1"/>
-  <object class="GtkTextBuffer" id="textbuffer2"/>
   <object class="GtkWindow" id="chat_window">
     <property name="resizable">1</property>
     <property name="default-width">1040</property>
@@ -88,17 +87,16 @@
                     <property name="min-content-width">420</property>
                     <property name="min-content-height">360</property>
                     <property name="child">
-                      <object class="GtkTextView" id="text_view_history">
-                        <property name="focusable">1</property>
-                        <property name="editable">0</property>
-                        <property name="cursor-visible">0</property>
-                        <property name="buffer">textbuffer2</property>
-                        <property name="accepts-tab">0</property>
-                        <property name="wrap-mode">word-char</property>
-                        <property name="left-margin">14</property>
-                        <property name="right-margin">14</property>
-                        <property name="top-margin">14</property>
-                        <property name="bottom-margin">14</property>
+                      <object class="GtkListBox" id="history_list">
+                        <property name="selection-mode">none</property>
+                        <property name="show-separators">0</property>
+                        <property name="hexpand">1</property>
+                        <property name="vexpand">1</property>
+                        <property name="margin-start">10</property>
+                        <property name="margin-end">10</property>
+                        <property name="margin-top">10</property>
+                        <property name="margin-bottom">10</property>
+                        <style><class name="boxed-list"/></style>
                       </object>
                     </property>
                     <style><class name="card"/></style>
