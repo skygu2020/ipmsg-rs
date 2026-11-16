@@ -76,9 +76,14 @@ impl MainWindow {
         },
     ));*/
         window.connect_close_request(move |win| {
+            #[cfg(target_os = "linux")]
+            win.set_visible(false);
+
+            #[cfg(not(target_os = "linux"))]
             if let Some(application) = win.application() {
                 application.remove_window(win);
             }
+
             glib::Propagation::Stop
         });
 
@@ -185,6 +190,30 @@ impl MainWindow {
         };
 
         model_run(socket.try_clone().unwrap(),  tx);
+
+        #[cfg(target_os = "linux")]
+        {
+            let (tray_actions_tx, tray_actions_rx) = async_channel::bounded(8);
+            let tray_shutdown = crate::ui::tray::start(tray_actions_tx);
+            application.connect_shutdown(move |_| {
+                let _ = tray_shutdown.try_send(());
+            });
+
+            let tray_application = application.clone();
+            let tray_window = window.clone();
+            glib::spawn_future_local(async move {
+                while let Ok(action) = tray_actions_rx.recv().await {
+                    match action {
+                        crate::ui::tray::TrayAction::ShowMainWindow => {
+                            tray_window.present();
+                        }
+                        crate::ui::tray::TrayAction::Quit => {
+                            tray_application.quit();
+                        }
+                    }
+                }
+            });
+        }
 
         glib::spawn_future_local(async move {
             while let Ok(event) = rx.recv().await {
