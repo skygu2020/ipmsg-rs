@@ -233,8 +233,9 @@ impl MainWindow {
                     UiEvent::DisplaySelfSendMsgInHis { to_ip, context, files: _ } => {
                         match chat_windows.get(&to_ip) {
                             Some(win) => {
-                                let (_, mut his_end_iter) = win.his_view.buffer().bounds();
-                                win.his_view.buffer().insert(&mut his_end_iter, format!("{}:{}\n", "我", context).as_str());
+                                crate::ui::chat_window::append_chat_message(
+                                    &win.history_list, "我", &context, true,
+                                );
                             }
                             None => {}
                         }
