@@ -197,7 +197,7 @@ fn model_packet_dispatcher(packet: Packet) {
         // 不是冒号分隔。第二段可能带有兼容客户端附加的换行。
         let mut ext_parts = extstr.splitn(2, '\0');
         let announced_name = ext_parts.next().unwrap_or("").trim();
-        let group_name = ext_parts.next().unwrap_or("").trim_start_matches(['\\r', '\\n']).trim().to_owned();
+        let group_name = ext_parts.next().unwrap_or("").trim_start_matches(|c| c == '\r' || c == '\n').trim().to_owned();
         let ansentry_packet = Packet::new(protocol::IPMSG_ANSENTRY, None);
 
         let user_name = if announced_name.is_empty() {
