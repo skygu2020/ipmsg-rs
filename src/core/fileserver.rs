@@ -98,16 +98,24 @@ impl FileServer {
                         Ok((mut packet, _)) => {
                             packet.ip = src.ip().to_string();
                             let cmd = protocol::get_mode(packet.command_no);
-                            if packet.additional_section.is_some() {
+                            if let Some(additional_section) = packet.additional_section {
                                 if cmd == protocol::IPMSG_GETFILEDATA {
-                                        //文件请求
-                                    FileServer::process_file(&pool_tmp, &mut stream_echo, packet.additional_section.unwrap())
-                                }else if cmd == protocol::IPMSG_GETDIRFILES {
-                                    FileServer::process_dir(pool_tmp, stream_echo, packet.additional_section.unwrap())
-                                }else {
+                                    // File request.
+                                    FileServer::process_file(
+                                        &pool_tmp,
+                                        &mut stream_echo,
+                                        additional_section,
+                                    );
+                                } else if cmd == protocol::IPMSG_GETDIRFILES {
+                                    FileServer::process_dir(
+                                        pool_tmp,
+                                        stream_echo,
+                                        additional_section,
+                                    );
+                                } else {
                                     info!("Invalid packet tcp file cmd {:?} !", tmp_str);
                                 }
-                            }else{
+                            } else {
                                 info!("Invalid packet additional_section is none {:?} !", tmp_str);
                             }
                         }
