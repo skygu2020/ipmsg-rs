@@ -439,14 +439,14 @@ pub fn append_chat_message(
     let group_key = format!("{}|{}", sender, if outgoing { "out" } else { "in" });
     let continues_group = history.last_child()
         .and_then(|child| child.downcast::<ListBoxRow>().ok())
-        .and_then(|previous| previous.tooltip_text())
-        .map(|previous_key| previous_key.as_str() == group_key.as_str())
+        .map(|previous| previous.widget_name().as_str() == group_key.as_str())
         .unwrap_or(false);
 
     let row = ListBoxRow::new();
     row.set_selectable(false);
     row.set_activatable(false);
-    row.set_tooltip_text(Some(&group_key));
+    // Keep grouping metadata internal instead of exposing it as a hover tooltip.
+    row.set_widget_name(&group_key);
 
     let line = GtkBox::new(Orientation::Horizontal, 0);
     line.set_hexpand(true);
