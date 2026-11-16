@@ -71,6 +71,22 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
     let btn_file: Button = builder.object("btn_file").unwrap();
     let btn_dir: Button = builder.object("btn_dir").unwrap();
 
+    // Enter sends the message; Shift+Enter keeps the normal newline behavior.
+    let send_key_controller = gtk::EventControllerKey::new();
+    send_key_controller.connect_key_pressed(glib::clone!(
+        #[weak] btn_send,
+        move |_, key, _, state| {
+            let is_enter = key == gdk::Key::Return || key == gdk::Key::KP_Enter;
+            if is_enter && !state.contains(gdk::ModifierType::SHIFT_MASK) {
+                btn_send.emit_clicked();
+                glib::Propagation::Stop
+            } else {
+                glib::Propagation::Proceed
+            }
+        }
+    ));
+    text_view_presend.add_controller(send_key_controller);
+
     //let text_view_presend_clone = text_view_presend.clone();
     //let arc_received_files: Arc<RefCell<Vec<ReceivedSimpleFileInfo>>> = Arc::new(RefCell::new(Vec::new()));
     let pre_send_files: Arc<RefCell<Vec<model::FileInfo>>> = Arc::new(RefCell::new(Vec::new()));//待发送文件列表
