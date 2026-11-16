@@ -23,6 +23,7 @@ use crate::models::message;
 pub struct ChatWindow {
     pub win :Window,
     pub history_list: ListBox,
+    pub history_scroller: gtk::ScrolledWindow,
     pub ip :String,
     pub pre_send_files :Arc<RefCell<Vec<model::FileInfo>>>,
     pub received_store :ListStore,
@@ -42,6 +43,7 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
     // chat_window.set_border_width(5);
     // 消息历史使用独立行和气泡布局。
     let history_list: ListBox = builder.object("history_list").unwrap();
+    let history_scroller: gtk::ScrolledWindow = builder.object("history_scroller").unwrap();
     history_list.set_selection_mode(gtk::SelectionMode::None);
     //待发送的
     let text_view_presend: TextView = builder.object("text_view_presend").unwrap();
@@ -283,6 +285,7 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
     ChatWindow {
         win: clone_chat,
         history_list,
+        history_scroller,
         ip: host_ip,
         pre_send_files,
         received_store: pre_received_files_model,
@@ -399,7 +402,13 @@ fn modify_received_list(received_store :Option<ListStore>, received_files: Arc<R
 
 /// Append one message as a chat bubble. Incoming messages align left; our own
 /// messages align right. The timestamp is rendered separately from the body.
-pub fn append_chat_message(history: &ListBox, sender: &str, body: &str, outgoing: bool) {
+pub fn append_chat_message(
+    history: &ListBox,
+    scroller: &gtk::ScrolledWindow,
+    sender: &str,
+    body: &str,
+    outgoing: bool,
+) {
     let row = ListBoxRow::new();
     row.set_selectable(false);
     row.set_activatable(false);
@@ -437,4 +446,13 @@ pub fn append_chat_message(history: &ListBox, sender: &str, body: &str, outgoing
     line.append(&bubble);
     row.set_child(Some(&line));
     history.append(&row);
+
+    // Wait until GTK recalculates the list's height before scrolling to the
+    // newest message; setting the adjustment immediately can use stale bounds.
+    let scroller = scroller.clone();
+    glib::idle_add_local_once(move || {
+        let adjustment = scroller.vadjustment();
+        let bottom = (adjustment.upper() - adjustment.page_size()).max(adjustment.lower());
+        adjustment.set_value(bottom);
+    });
 }
