@@ -27,6 +27,17 @@ pub struct ChatWindow {
     pub ip :String,
     pub pre_send_files :Arc<RefCell<Vec<model::FileInfo>>>,
     pub received_store :ListStore,
+    pub conversation_title: Label,
+    pub conversation_subtitle: Label,
+}
+
+impl ChatWindow {
+    /// Refresh the peer name in both the native title bar and conversation header.
+    pub fn update_peer_name(&self, name: &str) {
+        self.win.set_title(Some(&format!("和{}({})聊天窗口", name, self.ip)));
+        self.conversation_title.set_text(name);
+        self.conversation_subtitle.set_text(&format!("{} · 局域网联系人", self.ip));
+    }
 }
 
 pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
@@ -356,6 +367,8 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
         ip: host_ip,
         pre_send_files,
         received_store: pre_received_files_model,
+        conversation_title,
+        conversation_subtitle,
     }
 }
 
