@@ -182,36 +182,47 @@ impl MainWindow {
                         }
                     }
                     UiEvent::UserListAddOne(income_user) => {
-                        let mut in_flag = false;
-                        if let Some(first) = model.iter_first() {//拿出来第一条
-                            let mut num: u32 = model.string_from_iter(&first).unwrap().parse::<u32>().unwrap();//序号 会改变
-                            let ip = model.get_value(&first, 4).get::<String>().unwrap();//获取ip
-                            if ip == income_user.ip {
-                                in_flag = true;
-                            } else {
-                                loop {
-                                    num = num + 1;
-                                    if let Some(next_iter) = model.iter_from_string(&num.to_string()) {
-                                        let next_ip = model.get_value(&next_iter, 4).get::<String>().unwrap();//获取ip
-                                        if next_ip == income_user.ip {
-                                            in_flag = true;
-                                            break;
-                                        }
-                                    } else {
-                                        break;
-                                    }
+                        let display_name = income_user.name
+                            .split('\0')
+                            .next()
+                            .unwrap_or("")
+                            .trim()
+                            .to_owned();
+
+                        // A peer can announce an updated display name after the
+                        // initial discovery. Refresh the existing row instead of
+                        // silently keeping the stale name.
+                        let mut found = false;
+                        if let Some(mut iter) = model.iter_first() {
+                            loop {
+                                let row_ip = model.get_value(&iter, 4).get::<String>().unwrap_or_default();
+                                if row_ip == income_user.ip {
+                                    model.set_value(&iter, 1, &display_name.to_value());
+                                    model.set_value(&iter, 2, &income_user.group.to_value());
+                                    model.set_value(&iter, 3, &income_user.host.to_value());
+                                    found = true;
+                                    break;
+                                }
+                                if !model.iter_next(&mut iter) {
+                                    break;
                                 }
                             }
                         }
-                        if !in_flag {
-                            //model.insert_with_values(None, &[0, 1, 2, 3], &[&&income_user.name, &&income_user.group, &&income_user.host, &&income_user.ip]);
-                            let display_name = income_user.name
-                                .split('\0')
-                                .next()
-                                .unwrap_or("")
-                                .trim()
-                                .to_owned();
-                            model.insert_with_values(None, &[(0, &"face-smile"), (1, &display_name), (2, &&income_user.group), (3, &&income_user.host), (4, &&income_user.ip)]);
+
+                        if !found {
+                            model.insert_with_values(None, &[
+                                (0, &"face-smile"),
+                                (1, &display_name),
+                                (2, &income_user.group),
+                                (3, &income_user.host),
+                                (4, &income_user.ip),
+                            ]);
+                        }
+
+                        // Keep an already-open chat window in sync with the
+                        // latest identity received from the contact.
+                        if let Some(chat_win) = chat_windows.get(&income_user.ip) {
+                            chat_win.update_peer_name(&display_name);
                         }
                     }
                     UiEvent::CloseChatWindow(ip) => {
