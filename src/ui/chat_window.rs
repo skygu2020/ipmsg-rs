@@ -60,6 +60,11 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
     let tree_view_received: TreeView = builder.object("tree_view_received").unwrap();
 
     text_view_presend.set_wrap_mode(WrapMode::WordChar);
+    tree_view_received.set_headers_visible(true);
+    tree_view_received.set_enable_search(true);
+    tree_view_received.set_search_column(0);
+    tree_view_received.set_tooltip_text(Some("双击文件或文件夹，选择保存位置"));
+    tree_view_received.selection().set_mode(gtk::SelectionMode::Single);
     append_column(&tree_view_received, 0, "文件名");
     append_column(&tree_view_received, 6, "大小");
 
@@ -473,11 +478,20 @@ fn show_queued_files_empty_state(list_box: &ListBox) {
 fn append_column(tree: &TreeView, id: i32, title: &str) {
     let column = TreeViewColumn::new();
     let cell = CellRendererText::new();
+    if id == 6 {
+        cell.set_xalign(1.0);
+        column.set_sizing(gtk::TreeViewColumnSizing::Fixed);
+        column.set_fixed_width(76);
+        column.set_expand(false);
+    } else {
+        cell.set_xalign(0.0);
+        column.set_expand(true);
+    }
+    column.set_resizable(true);
     column.pack_start(&cell, true);
     column.set_title(title);
     column.add_attribute(&cell, "text", id);
     tree.append_column(&column);
-    tree.set_headers_visible(true);
 }
 
 fn create_and_fill_model1() -> ListStore {
