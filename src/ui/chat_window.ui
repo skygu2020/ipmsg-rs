@@ -4,9 +4,9 @@
   <object class="GtkTextBuffer" id="textbuffer1"/>
   <object class="GtkTextBuffer" id="textbuffer2"/>
   <object class="GtkWindow" id="chat_window">
-    <property name="resizable">0</property>
-    <property name="default_width">520</property>
-    <property name="default_height">250</property>
+    <property name="resizable">1</property>
+    <property name="default_width">800</property>
+    <property name="default_height">640</property>
     <property name="child">
       <object class="GtkGrid">
         <property name="row_spacing">5</property>
