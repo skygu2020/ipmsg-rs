@@ -109,11 +109,9 @@
             <property name="min_content_width">160</property>
             <property name="min_content_height">150</property>
             <property name="child">
-              <object class="GtkTreeView" id="tree_view_presend">
-                <property name="focusable">1</property>
-                <child internal-child="selection">
-                  <object class="GtkTreeSelection"/>
-                </child>
+              <object class="GtkListBox" id="list_box_presend">
+                <property name="selection-mode">none</property>
+                <property name="valign">start</property>
               </object>
             </property>
             <layout>
