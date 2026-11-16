@@ -368,16 +368,40 @@ fn append_queued_file(
     content.set_margin_start(6);
     content.set_margin_end(6);
 
+    let icon_name = if file_info.attr == crate::constants::protocol::IPMSG_FILE_DIR as u8 {
+        "folder-symbolic"
+    } else {
+        "text-x-generic-symbolic"
+    };
+    let icon = gtk::Image::from_icon_name(icon_name);
+    icon.set_pixel_size(24);
+    icon.add_css_class("dim-label");
+
+    let details = GtkBox::new(Orientation::Vertical, 2);
+    details.set_hexpand(true);
     let label = Label::new(Some(&file_info.name));
     label.set_xalign(0.0);
     label.set_hexpand(true);
     label.set_ellipsize(gtk::pango::EllipsizeMode::Middle);
     label.set_tooltip_text(Some(&file_info.file_name.to_string_lossy()));
-    let cancel = Button::with_label("取消");
+    let size_text = if file_info.attr == crate::constants::protocol::IPMSG_FILE_DIR as u8 {
+        "文件夹".to_owned()
+    } else {
+        format_file_size(file_info.size)
+    };
+    let size_label = Label::new(Some(&size_text));
+    size_label.set_xalign(0.0);
+    size_label.add_css_class("dim-label");
+    size_label.add_css_class("caption");
+    details.append(&label);
+    details.append(&size_label);
+
+    let cancel = Button::with_label("移除");
     cancel.add_css_class("flat");
     cancel.add_css_class("destructive-action");
     cancel.set_tooltip_text(Some("从待发送列表中移除此项目"));
-    content.append(&label);
+    content.append(&icon);
+    content.append(&details);
     content.append(&cancel);
     row.set_child(Some(&content));
 
@@ -393,6 +417,21 @@ fn append_queued_file(
         }
     ));
     list_box.append(&row);
+}
+
+fn format_file_size(size: u64) -> String {
+    const UNITS: [&str; 4] = ["B", "KB", "MB", "GB"];
+    let mut value = size as f64;
+    let mut unit = 0usize;
+    while value >= 1024.0 && unit < UNITS.len() - 1 {
+        value /= 1024.0;
+        unit += 1;
+    }
+    if unit == 0 {
+        format!("{} {}", size, UNITS[unit])
+    } else {
+        format!("{:.1} {}", value, UNITS[unit])
+    }
 }
 
 fn clear_queued_rows(list_box: &ListBox) {
