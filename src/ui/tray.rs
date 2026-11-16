@@ -15,7 +15,7 @@ pub fn start(actions: Sender<TrayAction>) -> Sender<()> {
         .name("ipmsg-system-tray".to_owned())
         .spawn(move || {
             let tray = IpmsgTray { actions };
-            let handle = match tray.spawn() {
+            let handle = match tray.assume_sni_available(true).spawn() {
                 Ok(handle) => handle,
                 Err(error) => {
                     log::warn!("无法启动系统托盘: {error}");
