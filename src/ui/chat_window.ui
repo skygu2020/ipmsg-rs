@@ -39,20 +39,54 @@
         </child>
         <child>
           <object class="GtkBox">
-            <property name="visible">True</property>
-            <property name="can_focus">False</property>
+            <property name="spacing">8</property>
+            <property name="valign">center</property>
             <child>
               <object class="GtkButton" id="btn_clear">
-                <property name="label" translatable="1">清空</property>
-                <property name="focusable">1</property>
-                <property name="receives_default">1</property>
+                <property name="tooltip_text">清空输入内容</property>
+                <style>
+                  <class name="flat"/>
+                </style>
+                <property name="child">
+                  <object class="GtkBox">
+                    <property name="spacing">6</property>
+                    <property name="halign">center</property>
+                    <child>
+                      <object class="GtkImage">
+                        <property name="icon_name">edit-clear-symbolic</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="label" translatable="1">清空</property>
+                      </object>
+                    </child>
+                  </object>
+                </property>
               </object>
             </child>
             <child>
               <object class="GtkButton" id="btn_send">
-                <property name="label" translatable="1">发送</property>
-                <property name="focusable">1</property>
-                <property name="receives_default">1</property>
+                <property name="tooltip_text">发送消息</property>
+                <style>
+                  <class name="suggested-action"/>
+                </style>
+                <property name="child">
+                  <object class="GtkBox">
+                    <property name="spacing">6</property>
+                    <property name="halign">center</property>
+                    <child>
+                      <object class="GtkImage">
+                        <property name="icon_name">mail-send-symbolic</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="label" translatable="1">发送</property>
+                      </object>
+                    </child>
+                  </object>
+                </property>
               </object>
             </child>
             <layout>
@@ -105,20 +139,54 @@
         </child>
         <child>
           <object class="GtkBox">
-            <property name="visible">True</property>
-            <property name="can_focus">False</property>
+            <property name="spacing">8</property>
+            <property name="valign">center</property>
             <child>
               <object class="GtkButton" id="btn_file">
-                <property name="label" translatable="1">选择文件</property>
-                <property name="focusable">1</property>
-                <property name="receives_default">1</property>
+                <property name="tooltip_text">添加要发送的文件</property>
+                <style>
+                  <class name="flat"/>
+                </style>
+                <property name="child">
+                  <object class="GtkBox">
+                    <property name="spacing">6</property>
+                    <property name="halign">center</property>
+                    <child>
+                      <object class="GtkImage">
+                        <property name="icon_name">document-open-symbolic</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="label" translatable="1">选择文件</property>
+                      </object>
+                    </child>
+                  </object>
+                </property>
               </object>
             </child>
             <child>
               <object class="GtkButton" id="btn_dir">
-                <property name="label" translatable="1">选择文件夹</property>
-                <property name="focusable">1</property>
-                <property name="receives_default">1</property>
+                <property name="tooltip_text">添加要发送的文件夹</property>
+                <style>
+                  <class name="flat"/>
+                </style>
+                <property name="child">
+                  <object class="GtkBox">
+                    <property name="spacing">6</property>
+                    <property name="halign">center</property>
+                    <child>
+                      <object class="GtkImage">
+                        <property name="icon_name">folder-open-symbolic</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="label" translatable="1">选择文件夹</property>
+                      </object>
+                    </child>
+                  </object>
+                </property>
               </object>
             </child>
             <layout>
