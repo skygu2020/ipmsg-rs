@@ -27,7 +27,7 @@ impl ManagerPool {
         ManagerPool { file_pool}
     }
 
-    pub fn run(mut self, file_info: ReceivedSimpleFileInfo, save_path: PathBuf, download_ip: String) {
+    pub fn run(self, file_info: ReceivedSimpleFileInfo, save_path: PathBuf, download_ip: String) {
         let tmp = self.clone();
         {
             let mut lock = tmp.file_pool.lock().unwrap();
@@ -92,12 +92,11 @@ pub fn download<A: ToSocketAddrs, S: AsRef<Path>>(addr: A, to_path: S, r_file: R
         while let Ok(Some(header_size_str)) = read_delimiter(&mut buffer) {
             let header_size = u64::from_str_radix(&header_size_str, 16)?;
             info!("header_size {:?}", header_size);
-            let header_context_str = read_bytes(&mut buffer, (header_size - 1 - header_size_str.as_bytes().len() as u64))?;//-1是减去的那个冒号
+            let header_context_str = read_bytes(&mut buffer, header_size - 1 - header_size_str.as_bytes().len() as u64)?;//-1是减去的那个冒号
             let v: Vec<&str> = header_context_str.splitn(4, |c| c == ':').collect();
             let file_name = v[0];
             let file_size = u64::from_str_radix(v[1], 16)?;
             let file_attr = u32::from_str_radix(v[2], 16)?;
-            let opt = protocol::get_opt(file_attr);
             let cmd = protocol::get_mode(file_attr);
             info!("header context {:?}", v);
             if cmd == IPMSG_FILE_DIR {
@@ -123,7 +122,7 @@ pub fn download<A: ToSocketAddrs, S: AsRef<Path>>(addr: A, to_path: S, r_file: R
     Ok(())
 }
 
-fn read_delimiter(mut stream : & mut BufReader<TcpStream>) -> Result<Option<String>> {
+fn read_delimiter(stream : &mut BufReader<TcpStream>) -> Result<Option<String>> {
     let mut s_buffer = Vec::new();
     let len = stream.read_until(u8::try_from(IPMSG_PACKET_DELIMITER)?, &mut s_buffer)?;
     if len != 0usize {
@@ -138,14 +137,14 @@ fn read_delimiter(mut stream : & mut BufReader<TcpStream>) -> Result<Option<Stri
     }
 }
 
-fn read_bytes(mut stream : & mut BufReader<TcpStream>, len: u64) -> Result<String> {
+fn read_bytes(stream : &mut BufReader<TcpStream>, len: u64) -> Result<String> {
     let mut s_buffer = Vec::new();
     let mut handler = stream.take(len);
     handler.read_to_end(&mut s_buffer)?;
     Ok(GB18030.decode(s_buffer.as_slice(), DecoderTrap::Ignore).map_err(|e| anyhow!("{:?}", e))?)
 }
 
-fn read_bytes_to_file(mut stream : & mut BufReader<TcpStream>, len: u64, file_path: &PathBuf) -> Result<()> {
+fn read_bytes_to_file(stream : &mut BufReader<TcpStream>, len: u64, file_path: &PathBuf) -> Result<()> {
     let mut f: File = File::create(file_path).unwrap();
     info!("file len {:?}", len);
     let mut handler = stream.take(len as u64);
@@ -161,7 +160,7 @@ fn read_bytes_to_file(mut stream : & mut BufReader<TcpStream>, len: u64, file_pa
 /// unkown filesize can use follow
 /// 可以不需要文件长度的读
 ///
-fn read_bytes_to_file_unsize(mut stream : & mut BufReader<TcpStream>, file_path: &PathBuf) -> Result<()> {
+fn read_bytes_to_file_unsize(stream : &mut BufReader<TcpStream>, file_path: &PathBuf) -> Result<()> {
     let mut file: File = File::create(file_path).unwrap();
     loop {
         let mut buffer = [0; 2048];
