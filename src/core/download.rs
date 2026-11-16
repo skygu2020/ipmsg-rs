@@ -87,7 +87,10 @@ pub fn download<A: ToSocketAddrs, S: AsRef<Path>>(addr: A, to_path: S, r_file: R
         let mut buffer = BufReader::new(stream);
         read_bytes_to_file(&mut buffer, file_size, &file_location)?;
     }else if file_type == IPMSG_FILE_DIR {
-        let mut next_path = to_path.as_ref().to_path_buf();
+        // The user-selected destination root is trusted, but every directory
+        // created below it must remain a real directory, not a symlink.
+        let destination_root = to_path.as_ref().to_path_buf();
+        let mut next_path = destination_root.clone();
         let mut directory_depth = 0usize;
         let mut buffer = BufReader::new(stream);
         loop {
@@ -115,17 +118,25 @@ pub fn download<A: ToSocketAddrs, S: AsRef<Path>>(addr: A, to_path: S, r_file: R
             info!("header context {:?}", v);
             if cmd == IPMSG_FILE_DIR {
                 validate_transfer_name(file_name)?;
+                validate_transfer_directories(&destination_root, &next_path)?;
                 next_path.push(file_name);
                 match fs::symlink_metadata(&next_path) {
                     Ok(metadata) if metadata.file_type().is_dir() => {}
                     Ok(_) => return Err(anyhow!("directory destination is not a real directory: {:?}", next_path)),
-                    Err(err) if err.kind() == std::io::ErrorKind::NotFound => fs::create_dir(&next_path)?,
+                    Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                        fs::create_dir(&next_path)?;
+                        let metadata = fs::symlink_metadata(&next_path)?;
+                        if !metadata.file_type().is_dir() {
+                            return Err(anyhow!("created directory was replaced: {:?}", next_path));
+                        }
+                    }
                     Err(err) => return Err(err.into()),
                 }
                 directory_depth += 1;
                 info!("created directory {:?}", next_path);
             }else if cmd == IPMSG_FILE_REGULAR {
                 validate_transfer_name(file_name)?;
+                validate_transfer_directories(&destination_root, &next_path)?;
                 next_path.push(file_name);
                 if let Ok(metadata) = fs::symlink_metadata(&next_path) {
                     if metadata.file_type().is_symlink() || !metadata.file_type().is_file() {
@@ -149,6 +160,32 @@ pub fn download<A: ToSocketAddrs, S: AsRef<Path>>(addr: A, to_path: S, r_file: R
         }
     }
     info!("download end!");
+    Ok(())
+}
+
+// Check every directory below the user-selected root before writing into it.
+// The root itself may intentionally be a symlink chosen by the user; descendants
+// created or traversed from the transfer stream must not be symlinks.
+fn validate_transfer_directories(root: &Path, current: &Path) -> Result<()> {
+    let relative = current.strip_prefix(root)
+        .map_err(|_| anyhow!("directory transfer path escaped destination root"))?;
+    let mut checked = root.to_path_buf();
+
+    for component in relative.components() {
+        if let Component::Normal(name) = component {
+            checked.push(name);
+            let metadata = fs::symlink_metadata(&checked)?;
+            if !metadata.file_type().is_dir() {
+                return Err(anyhow!(
+                    "directory transfer path contains a non-directory or symlink: {:?}",
+                    checked
+                ));
+            }
+        } else {
+            return Err(anyhow!("invalid directory component in transfer path: {:?}", component));
+        }
+    }
+
     Ok(())
 }
 
