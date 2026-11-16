@@ -118,9 +118,21 @@ impl FileServer {
             if let Some(result_share_file) = search_result {
                 let file_info = result_share_file.file_info.iter().find(|ref f| f.file_id == file_id as u32);
                 if let Some(file_info) = file_info {
-                    let ref root_path: PathBuf = file_info.file_name;
-                    let mut buffer = BufWriter::new(stream_echo.try_clone().unwrap());
-                    send_dir(root_path, &mut buffer);
+                    let root_path = &file_info.file_name;
+                    let mut buffer = match stream_echo.try_clone() {
+                        Ok(stream) => BufWriter::new(stream),
+                        Err(err) => {
+                            info!("failed to clone directory transfer stream: {}", err);
+                            return;
+                        }
+                    };
+                    if let Err(err) = send_dir(root_path, &mut buffer) {
+                        info!("failed to send shared directory {:?}: {}", root_path, err);
+                        return;
+                    }
+                    if let Err(err) = buffer.flush() {
+                        info!("failed to flush shared directory {:?}: {}", root_path, err);
+                    }
                 }
             }
         }
@@ -202,66 +214,97 @@ impl FileServer {
 }
 
 //send dir
-pub fn send_dir(root_path: &PathBuf, mut buffer : & mut BufWriter<TcpStream>) {
-    buffer.write(util::utf8_to_gb18030(&make_header(&root_path, false)).as_slice()).unwrap();//root dir
-    debug!("{:?}", make_header(&root_path, false));
-    if root_path.is_dir() {
-        for sub_path in fs::read_dir(root_path).unwrap() {
-            let sub = sub_path.unwrap().path();
-            if sub.is_file() {
-                let header = make_header(&sub, false);
-                buffer.write(util::utf8_to_gb18030(&header).as_slice()).unwrap();
-                info!("{:?}", header);
-                let mut buf = [0; 1024];
-                let mut f: File = File::open(&sub).unwrap();
-                while let Ok(bytes_read) = f.read(&mut buf) {
-                    if bytes_read == 0 { break; }
-                    buffer.write(&buf[..bytes_read]).unwrap();
-                    buffer.flush().unwrap();
+pub fn send_dir(root_path: &PathBuf, buffer: &mut BufWriter<TcpStream>) -> std::io::Result<()> {
+    let root_metadata = fs::symlink_metadata(root_path)?;
+    if !root_metadata.file_type().is_dir() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("shared directory is not a real directory: {:?}", root_path),
+        ));
+    }
+
+    let root_header = make_header(root_path, false)?;
+    buffer.write_all(util::utf8_to_gb18030(&root_header).as_slice())?;
+    debug!("{:?}", root_header);
+
+    for entry in fs::read_dir(root_path)? {
+        let entry = entry?;
+        let sub = entry.path();
+        let file_type = entry.file_type()?;
+
+        // Do not follow symbolic links: they may point outside the shared tree.
+        if file_type.is_symlink() {
+            info!("skip symbolic link in shared directory: {:?}", sub);
+            continue;
+        }
+
+        if file_type.is_file() {
+            let header = make_header(&sub, false)?;
+            buffer.write_all(util::utf8_to_gb18030(&header).as_slice())?;
+            info!("{:?}", header);
+
+            let mut file = File::open(&sub)?;
+            let mut buf = [0; 16 * 1024];
+            loop {
+                match file.read(&mut buf) {
+                    Ok(0) => break,
+                    Ok(bytes_read) => buffer.write_all(&buf[..bytes_read])?,
+                    Err(err) if err.kind() == std::io::ErrorKind::Interrupted => continue,
+                    Err(err) => return Err(err),
                 }
-            }else {
-                send_dir(&sub, &mut buffer);
             }
+        } else if file_type.is_dir() {
+            send_dir(&sub, buffer)?;
+        } else {
+            info!("skip unsupported filesystem entry in shared directory: {:?}", sub);
         }
     }
-    let ret_parent = make_header(root_path, true);
-    buffer.write(ret_parent.as_bytes()).unwrap();
+
+    let ret_parent = make_header(root_path, true)?;
+    buffer.write_all(util::utf8_to_gb18030(&ret_parent).as_slice())?;
     debug!("{ret_parent:?}");
+    Ok(())
 }
 
 ///
 /// 转换报文
-pub fn make_header(path: &PathBuf, ret_parent: bool) -> String {
-    let file_name;
-    let file_attr;
-    let file_size;
+pub fn make_header(path: &PathBuf, ret_parent: bool) -> std::io::Result<String> {
     let mut header = String::new();
     header.push(IPMSG_PACKET_DELIMITER);
-    if ret_parent {
-        file_attr = protocol::IPMSG_FILE_RETPARENT;
-        let tmp_file_name = format!("{}", REPARENT_PATH);
-        header.push_str(tmp_file_name.as_str());//filename
-        file_size = 0;
-    }else{
-        let path_metadata: Metadata = fs::metadata(&path).unwrap();
-        file_size = path_metadata.len();
-        file_name = path.file_name().unwrap().to_str().unwrap();
+
+    let (file_size, file_attr) = if ret_parent {
+        header.push_str(REPARENT_PATH);
+        (0, protocol::IPMSG_FILE_RETPARENT)
+    } else {
+        let path_metadata: Metadata = fs::symlink_metadata(path)?;
+        let file_name = path.file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("shared filename is not valid UTF-8: {:?}", path),
+            ))?;
         header.push_str(file_name);
-        if path_metadata.is_dir() {
-            file_attr = protocol::IPMSG_FILE_DIR;
+        let file_attr = if path_metadata.file_type().is_dir() {
+            protocol::IPMSG_FILE_DIR
+        } else if path_metadata.file_type().is_file() {
+            protocol::IPMSG_FILE_REGULAR
         } else {
-            file_attr = protocol::IPMSG_FILE_REGULAR;
-        }
-    }
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!("unsupported shared filesystem entry: {:?}", path),
+            ));
+        };
+        (path_metadata.len(), file_attr)
+    };
 
     header.push(IPMSG_PACKET_DELIMITER);
-    header.push_str(format!("{:x}", file_size).as_str());//filesize//
+    header.push_str(format!("{:x}", file_size).as_str());
     header.push(IPMSG_PACKET_DELIMITER);
-    header.push_str(format!("{:x}", file_attr).as_str());//fileattr
+    header.push_str(format!("{:x}", file_attr).as_str());
     let timestamp_now = Local::now().timestamp();
-    header.push_str(format!(":{:x}={:x}:{:x}={:x}:", protocol::IPMSG_FILE_CREATETIME, timestamp_now, protocol::IPMSG_FILE_MTIME, timestamp_now).as_str());//
+    header.push_str(format!(":{:x}={:x}:{:x}={:x}:", protocol::IPMSG_FILE_CREATETIME, timestamp_now, protocol::IPMSG_FILE_MTIME, timestamp_now).as_str());
     let mut length = util::utf8_to_gb18030(&header).len();
-    length = length + format!("{:0>4x}", length).len();
+    length += format!("{:0>4x}", length).len();
     header.insert_str(0, format!("{:0>4x}", length).as_str());
-    header
+    Ok(header)
 }
