@@ -281,15 +281,18 @@ fn read_bytes_to_file(stream: &mut BufReader<TcpStream>, len: u64, file_path: &P
 /// unkown filesize can use follow
 /// 可以不需要文件长度的读
 ///
-fn read_bytes_to_file_unsize(stream : &mut BufReader<TcpStream>, file_path: &PathBuf) -> Result<()> {
-    let mut file: File = File::create(file_path).unwrap();
+fn read_bytes_to_file_unsize(stream: &mut BufReader<TcpStream>, file_path: &PathBuf) -> Result<()> {
+    let mut file = create_transfer_file(file_path)?;
+
     loop {
         let mut buffer = [0; 2048];
-        let num = stream.read(&mut buffer[..])?;
+        let num = stream.read(&mut buffer)?;
         if num == 0 {
             break;
         }
-        file.write(&buffer[0..num])?;
+        file.write_all(&buffer[..num])?;
     }
+
+    file.flush()?;
     Ok(())
 }
