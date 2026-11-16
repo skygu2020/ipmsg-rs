@@ -70,7 +70,11 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
     let pre_received_files_model = create_and_fill_model1();
     tree_view_received.set_model(Some(&pre_received_files_model));
     let files_send_clone = pre_send_files.clone();
-    btn_send.connect_clicked(clone!(@strong pre_send_files_model, @strong host_ip, @strong text_view_presend => move|_|{
+    btn_send.connect_clicked(clone!(
+        #[strong] pre_send_files_model,
+        #[strong] host_ip,
+        #[strong] text_view_presend,
+        move|_|{
         let (start_iter, mut end_iter) = text_view_presend.buffer().bounds();
         let context :&str = &text_view_presend.buffer().text(&start_iter, &end_iter, false);
         let (packet, share_file) = message::create_sendmsg(context.to_owned(), files_send_clone.clone().borrow().to_vec(), host_ip.clone());
@@ -78,10 +82,14 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
         files_send_clone.borrow_mut().clear();
         pre_send_files_model.clear();
         text_view_presend.buffer().set_text("");
-    }));
+    },
+    ));
 
     let chat_window_open_save = chat_window.clone();
-    tree_view_received.connect_row_activated(clone!(@weak chat_window_open_save, @strong host_ip => move |tree_view, tree_path, tree_view_column| {
+    tree_view_received.connect_row_activated(clone!(
+        #[weak] chat_window_open_save,
+        #[strong] host_ip,
+        move |tree_view, tree_path, tree_view_column| {
         let selection = tree_view.selection();
         if let Some((model, iter)) = selection.selected() {
             let name: String = model.get_value(&iter, 0).get().unwrap();
@@ -117,16 +125,23 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
             });
             file_chooser.show();
         }
-    }));
+    },
+    ));
 
-    btn_clear.connect_clicked(clone!(@strong text_view_presend => move|_|{
+    btn_clear.connect_clicked(clone!(
+        #[strong] text_view_presend,
+        move|_|{
         text_view_presend.buffer().set_text("");
-    }));
+    },
+    ));
 
     let chat_window_open_file = chat_window.clone();
     let pre_send_files_open_file = pre_send_files.clone();
     let chat_window_open_save = chat_window_open_save.clone();
-    btn_file.connect_clicked(clone!(@strong pre_send_files_model, @weak chat_window_open_save => move|_|{
+    btn_file.connect_clicked(clone!(
+        #[strong] pre_send_files_model,
+        #[weak] chat_window_open_save,
+        move|_|{
 
         let file_chooser = gtk::FileChooserDialog::new(
                 Some("打开文件"),
@@ -172,12 +187,17 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
             d.close();
         });
         file_chooser.show();
-    }));
+    },
+    ));
 
     let chat_window_open_dir = chat_window.clone();
     let pre_send_files_open_dir = pre_send_files.clone();
     let chat_window_open_save = chat_window_open_save.clone();
-    btn_dir.connect_clicked(clone!(@strong pre_send_files_model, @strong pre_send_files, @weak chat_window_open_save => move|_|{
+    btn_dir.connect_clicked(clone!(
+        #[strong] pre_send_files_model,
+        #[strong] pre_send_files,
+        #[weak] chat_window_open_save,
+        move|_|{
         let file_chooser = gtk::FileChooserDialog::new(
                 Some("打开文件夹"),
                 Some(&chat_window_open_save),
@@ -220,9 +240,14 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
                 d.close();
         });
         file_chooser.show();
-    }));
+    },
+    ));
 
-    chat_window.connect_close_request(clone!(@strong host_ip => @default-return glib::signal::Inhibit(false), move |window| {
+    chat_window.connect_close_request(clone!(
+        #[strong] host_ip,
+        #[upgrade_or]
+        glib::signal::Inhibit(false),
+        move |window| {
         GLOBLE_SENDER.send(ModelEvent::ClickChatWindowCloseBtn{from_ip: host_ip.clone()}).unwrap();
         /*if let Some(application) = window.application() {
             application.remove_window(window);*/
@@ -230,7 +255,8 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
             info!("关闭聊天窗口！");
         // }
         glib::Propagation::Proceed
-    }));
+    },
+    ));
 
 
     // chat_window.show_all();
