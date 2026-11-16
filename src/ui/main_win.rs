@@ -292,6 +292,24 @@ impl MainWindow {
                             }
                         }
                     }
+                    UiEvent::DownloadFailed { packet_id, file_id, download_ip } => {
+                        if let Some(win) = chat_windows.get(&download_ip) {
+                            let store = &win.received_store;
+                            if let Some(mut iter) = store.iter_first() {
+                                loop {
+                                    let row_file_id = store.get_value(&iter, 1).get::<u32>().unwrap_or_default();
+                                    let row_packet_id = store.get_value(&iter, 2).get::<u32>().unwrap_or_default();
+                                    if row_file_id == file_id && row_packet_id == packet_id {
+                                        store.set_value(&iter, 8, &"接收失败".to_value());
+                                        break;
+                                    }
+                                    if !store.iter_next(&mut iter) {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
                     UiEvent::RemoveInReceivedList { packet_id, file_id, download_ip } => {
                         match chat_windows.get(&download_ip) {
                             Some(win) => {
