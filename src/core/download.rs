@@ -30,7 +30,13 @@ impl ManagerPool {
     pub fn run(self, file_info: ReceivedSimpleFileInfo, save_path: PathBuf, download_ip: String) {
         let tmp = self.clone();
         {
-            let mut lock = tmp.file_pool.lock().unwrap();
+            let mut lock = match tmp.file_pool.lock() {
+                Ok(lock) => lock,
+                Err(err) => {
+                    log::error!("download task pool lock poisoned: {}", err);
+                    return;
+                }
+            };
             let file = lock.get(&file_info.file_id);
             if let Some(p_file) = file {
                 if p_file.status == 1 {
@@ -47,7 +53,13 @@ impl ManagerPool {
             let download_url = format!("{}:{}", download_ip, protocol::IPMSG_DEFAULT_PORT);
             let is_ok = download(download_url, save_path, file_info.clone()).is_ok();
             {
-                let mut lock = tmp.file_pool.lock().unwrap();
+                let mut lock = match tmp.file_pool.lock() {
+                    Ok(lock) => lock,
+                    Err(err) => {
+                        log::error!("download task pool lock poisoned while finishing transfer: {}", err);
+                        return;
+                    }
+                };
                 let mut file = lock.get(&file_info.file_id);
                 if let Some(p_file) = file.take() {
                     if is_ok {
