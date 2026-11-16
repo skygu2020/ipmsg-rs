@@ -548,9 +548,9 @@ fn append_column(tree: &TreeView, id: i32, title: &str) {
         column.set_expand(false);
     } else if id == 8 {
         cell.set_xalign(0.0);
-        // Keep this short status label unellipsized; the fixed column is wide enough.
+        cell.set_ellipsize(gtk::pango::EllipsizeMode::None);
         column.set_sizing(gtk::TreeViewColumnSizing::Fixed);
-        column.set_fixed_width(92);
+        column.set_fixed_width(120);
         column.set_expand(false);
     } else {
         cell.set_xalign(0.0);
