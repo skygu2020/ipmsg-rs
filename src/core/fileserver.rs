@@ -108,15 +108,37 @@ impl FileServer {
     fn process_dir(pool_tmp: Arc<Mutex<Vec<ShareInfo>>>, stream_echo: TcpStream, ext_str: String) -> () {
         let file_attr = ext_str.splitn(3, |c| c == ':').into_iter().filter(|x: &&str| !x.is_empty()).collect::<Vec<&str>>();
         info!("file dir packet parse {:?}", file_attr);
-        if file_attr.len() >= 2 {
-            let packet_id = i64::from_str_radix(file_attr[0], 16).unwrap() as u32;
-            let file_id = i64::from_str_radix(file_attr[1], 16).unwrap();
-            let search_result = {
-                let search = pool_tmp.lock().unwrap();
-                search.iter().find(|s| s.packet_no == packet_id).cloned()
+        if file_attr.len() < 2 {
+            info!("invalid directory request: expected packet and file ids");
+            return;
+        }
+
+        let packet_id = match u32::from_str_radix(file_attr[0], 16) {
+            Ok(value) => value,
+            Err(err) => {
+                info!("invalid directory request packet id {:?}: {}", file_attr[0], err);
+                return;
+            }
+        };
+        let file_id = match u32::from_str_radix(file_attr[1], 16) {
+            Ok(value) => value,
+            Err(err) => {
+                info!("invalid directory request file id {:?}: {}", file_attr[1], err);
+                return;
+            }
+        };
+        let search_result = {
+            let search = match pool_tmp.lock() {
+                Ok(search) => search,
+                Err(err) => {
+                    info!("file share pool lock poisoned: {}", err);
+                    return;
+                }
             };
-            if let Some(result_share_file) = search_result {
-                let file_info = result_share_file.file_info.iter().find(|ref f| f.file_id == file_id as u32);
+            search.iter().find(|s| s.packet_no == packet_id).cloned()
+        };
+        if let Some(result_share_file) = search_result {
+            let file_info = result_share_file.file_info.iter().find(|f| f.file_id == file_id);
                 if let Some(file_info) = file_info {
                     let root_path = &file_info.file_name;
                     let mut buffer = match stream_echo.try_clone() {
