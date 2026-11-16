@@ -383,12 +383,15 @@ pub fn make_header(path: &PathBuf, ret_parent: bool) -> std::io::Result<String> 
 
         // IPMSG timestamps are Unix seconds. Use filesystem timestamps rather
         // than the time the directory listing happened to be sent.
-        let modified = path_metadata.modified()?
+        // Read modified time once. If the platform does not expose a
+        // creation time, use this already-validated timestamp as the fallback.
+        let modified_time = path_metadata.modified()?;
+        let modified = modified_time
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        let created = path_metadata.created()
-            .unwrap_or_else(|_| path_metadata.modified().unwrap_or(std::time::UNIX_EPOCH))
+        let created_time = path_metadata.created().unwrap_or(modified_time);
+        let created = created_time
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
