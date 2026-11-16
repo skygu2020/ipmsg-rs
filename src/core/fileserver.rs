@@ -185,83 +185,110 @@ impl FileServer {
         }
     }
 
-    fn process_file(pool_tmp: &Arc<Mutex<Vec<ShareInfo>>>, stream_echo: &mut TcpStream, ext_str: String) -> () {
-        let file_attr = ext_str.splitn(4, |c| c == ':').into_iter().filter(|x: &&str| !x.is_empty()).collect::<Vec<&str>>();
+    fn process_file(pool_tmp: &Arc<Mutex<Vec<ShareInfo>>>, stream_echo: &mut TcpStream, ext_str: String) {
+        let file_attr = ext_str
+            .splitn(4, |c| c == ':')
+            .filter(|x: &&str| !x.is_empty())
+            .collect::<Vec<&str>>();
         info!("file packet parse {:?}", file_attr);
-        if file_attr.len() >= 3 {
-            let packet_id = match u32::from_str_radix(file_attr[0], 16) {
-                Ok(value) => value,
-                Err(err) => {
-                    info!("invalid file request packet id {:?}: {}", file_attr[0], err);
-                    return;
-                }
-            };
-            let file_id = match u32::from_str_radix(file_attr[1], 16) {
-                Ok(value) => value,
-                Err(err) => {
-                    info!("invalid file request file id {:?}: {}", file_attr[1], err);
-                    return;
-                }
-            };
-            // The offset is a decimal byte count in GETFILEDATA requests.
-            // Use u64 so files larger than 4 GiB can be resumed.
-            let offset = match file_attr[2].parse::<u64>() {
-                Ok(value) => value,
-                Err(err) => {
-                    info!("invalid file request offset {:?}: {}", file_attr[2], err);
-                    return;
-                }
-            };
-            let search_result = {
-                let search = match pool_tmp.lock() {
-                    Ok(search) => search,
-                    Err(err) => {
-                        info!("file share pool lock poisoned: {}", err);
-                        return;
-                    }
-                };
-                search.iter().find(|s| s.packet_no == packet_id).cloned()
-            };
-            if let Some(result_share_file) = search_result {
-                let file_info = result_share_file.file_info.iter().find(|f| f.file_id == file_id);
-                if let Some(file_info) = file_info {
-                    // IPMSG_GETFILEDATA carries the byte offset in the third
-                    // field. Honour it so clients can resume an interrupted transfer.
-                    let mut f = match open_regular_file(&file_info.file_name) {
-                        Ok(file) => file,
-                        Err(err) => {
-                            info!("failed to safely open shared file {:?}: {}", file_info.file_name, err);
-                            return;
-                        }
-                    };
-                    if let Err(err) = f.seek(SeekFrom::Start(offset)) {
-                        info!("failed to seek shared file {:?} to {}: {}", file_info.file_name, offset, err);
-                        return;
-                    }
 
-                    let mut buf = [0; 16 * 1024];
-                    let mut buffer = BufWriter::new(stream_echo);
-                    loop {
-                        match f.read(&mut buf) {
-                            Ok(0) => break,
-                            Ok(bytes_read) => {
-                                if let Err(err) = buffer.write_all(&buf[..bytes_read]) {
-                                    info!("failed to send shared file {:?}: {}", file_info.file_name, err);
-                                    return;
-                                }
-                            }
-                            Err(err) if err.kind() == std::io::ErrorKind::Interrupted => continue,
-                            Err(err) => {
-                                info!("failed to read shared file {:?}: {}", file_info.file_name, err);
-                                return;
-                            }
-                        }
+        if file_attr.len() < 3 {
+            info!("invalid file request: expected packet id, file id, and offset");
+            return;
+        }
+
+        let packet_id = match u32::from_str_radix(file_attr[0], 16) {
+            Ok(value) => value,
+            Err(err) => {
+                info!("invalid file request packet id {:?}: {}", file_attr[0], err);
+                return;
+            }
+        };
+        let file_id = match u32::from_str_radix(file_attr[1], 16) {
+            Ok(value) => value,
+            Err(err) => {
+                info!("invalid file request file id {:?}: {}", file_attr[1], err);
+                return;
+            }
+        };
+        // The offset is a decimal byte count in GETFILEDATA requests.
+        // Use u64 so files larger than 4 GiB can be resumed.
+        let offset = match file_attr[2].parse::<u64>() {
+            Ok(value) => value,
+            Err(err) => {
+                info!("invalid file request offset {:?}: {}", file_attr[2], err);
+                return;
+            }
+        };
+
+        let search_result = {
+            let search = match pool_tmp.lock() {
+                Ok(search) => search,
+                Err(err) => {
+                    info!("file share pool lock poisoned: {}", err);
+                    return;
+                }
+            };
+            search.iter().find(|share| share.packet_no == packet_id).cloned()
+        };
+
+        let Some(result_share_file) = search_result else {
+            info!("file request references unknown packet id: {}", packet_id);
+            return;
+        };
+        let Some(file_info) = result_share_file.file_info.iter().find(|file| file.file_id == file_id) else {
+            info!("file request references unknown file id {} in packet {}", file_id, packet_id);
+            return;
+        };
+
+        // IPMSG_GETFILEDATA carries the byte offset in the third field.
+        // Honour it so clients can resume an interrupted transfer.
+        let mut file = match open_regular_file(&file_info.file_name) {
+            Ok(file) => file,
+            Err(err) => {
+                info!("failed to safely open shared file {:?}: {}", file_info.file_name, err);
+                return;
+            }
+        };
+        let file_len = match file.metadata() {
+            Ok(metadata) => metadata.len(),
+            Err(err) => {
+                info!("failed to read shared file metadata {:?}: {}", file_info.file_name, err);
+                return;
+            }
+        };
+        if offset > file_len {
+            info!(
+                "file request offset {} exceeds shared file size {}: {:?}",
+                offset, file_len, file_info.file_name
+            );
+            return;
+        }
+        if let Err(err) = file.seek(SeekFrom::Start(offset)) {
+            info!("failed to seek shared file {:?} to {}: {}", file_info.file_name, offset, err);
+            return;
+        }
+
+        let mut buf = [0; 16 * 1024];
+        let mut buffer = BufWriter::new(stream_echo);
+        loop {
+            match file.read(&mut buf) {
+                Ok(0) => break,
+                Ok(bytes_read) => {
+                    if let Err(err) = buffer.write_all(&buf[..bytes_read]) {
+                        info!("failed to send shared file {:?}: {}", file_info.file_name, err);
+                        return;
                     }
-                    if let Err(err) = buffer.flush() {
-                        info!("failed to flush shared file {:?}: {}", file_info.file_name, err);
-                    }
+                }
+                Err(err) if err.kind() == std::io::ErrorKind::Interrupted => continue,
+                Err(err) => {
+                    info!("failed to read shared file {:?}: {}", file_info.file_name, err);
+                    return;
                 }
             }
+        }
+        if let Err(err) = buffer.flush() {
+            info!("failed to flush shared file {:?}: {}", file_info.file_name, err);
         }
     }
 }
