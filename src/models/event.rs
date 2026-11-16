@@ -14,6 +14,7 @@ pub enum UiEvent {
     DisplaySelfSendMsgInHis{to_ip: String, context: String, files: Option<ShareInfo>},
     DisplayReceivedMsgInHis{from_ip: String, name: String, context: String, files: Vec<ReceivedSimpleFileInfo> },
     DownloadProgress { packet_id: u32, file_id: u32, download_ip: String, transferred: u64, total: u64 },
+    DownloadFailed { packet_id: u32, file_id: u32, download_ip: String },
     RemoveInReceivedList {packet_id: u32, file_id: u32, download_ip: String },
 }
 
