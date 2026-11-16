@@ -227,7 +227,7 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
                         name: name.to_owned(),
                         attr: attr as u8,
                         size: size,
-                        mtime: Local::now().time(),
+                        mtime: local_time.time(),
                         atime: Local::now().time(),
                         crtime: Local::now().time(),
                     };
