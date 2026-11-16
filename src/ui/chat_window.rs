@@ -81,6 +81,12 @@ pub fn create_chat_window<S: Into<String>>(name: S, host_ip: S, host_name: S) ->
     let tree_view_received: TreeView = builder.object("tree_view_received").unwrap();
 
     text_view_presend.set_wrap_mode(WrapMode::WordChar);
+    // Keep glyph ascenders/descenders inside the allocated line box and avoid
+    // clipped remnants when the buffer is cleared or its contents are replaced.
+    text_view_presend.set_top_margin(12);
+    text_view_presend.set_bottom_margin(12);
+    text_view_presend.set_pixels_above_lines(2);
+    text_view_presend.set_pixels_below_lines(2);
     tree_view_received.set_headers_visible(true);
     tree_view_received.set_enable_search(true);
     tree_view_received.set_search_column(0);
@@ -163,6 +169,7 @@ pub fn create_chat_window<S: Into<String>>(name: S, host_ip: S, host_name: S) ->
         files_send_clone.borrow_mut().clear();
         clear_queued_rows(&list_box_presend);
         text_view_presend.buffer().set_text("");
+        text_view_presend.queue_draw();
     },
     ));
 
