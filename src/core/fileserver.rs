@@ -105,9 +105,13 @@ impl FileServer {
         });
     }
 
-    fn process_dir(pool_tmp: Arc<Mutex<Vec<ShareInfo>>>, stream_echo: TcpStream, ext_str: String) -> () {
-        let file_attr = ext_str.splitn(3, |c| c == ':').into_iter().filter(|x: &&str| !x.is_empty()).collect::<Vec<&str>>();
+    fn process_dir(pool_tmp: Arc<Mutex<Vec<ShareInfo>>>, stream_echo: TcpStream, ext_str: String) {
+        let file_attr = ext_str
+            .splitn(3, |c| c == ':')
+            .filter(|x| !x.is_empty())
+            .collect::<Vec<&str>>();
         info!("file dir packet parse {:?}", file_attr);
+
         if file_attr.len() < 2 {
             info!("invalid directory request: expected packet and file ids");
             return;
@@ -127,6 +131,7 @@ impl FileServer {
                 return;
             }
         };
+
         let search_result = {
             let search = match pool_tmp.lock() {
                 Ok(search) => search,
@@ -135,28 +140,33 @@ impl FileServer {
                     return;
                 }
             };
-            search.iter().find(|s| s.packet_no == packet_id).cloned()
+            search.iter().find(|share| share.packet_no == packet_id).cloned()
         };
-        if let Some(result_share_file) = search_result {
-            let file_info = result_share_file.file_info.iter().find(|f| f.file_id == file_id);
-                if let Some(file_info) = file_info {
-                    let root_path = &file_info.file_name;
-                    let mut buffer = match stream_echo.try_clone() {
-                        Ok(stream) => BufWriter::new(stream),
-                        Err(err) => {
-                            info!("failed to clone directory transfer stream: {}", err);
-                            return;
-                        }
-                    };
-                    if let Err(err) = send_dir(root_path, &mut buffer) {
-                        info!("failed to send shared directory {:?}: {}", root_path, err);
-                        return;
-                    }
-                    if let Err(err) = buffer.flush() {
-                        info!("failed to flush shared directory {:?}: {}", root_path, err);
-                    }
-                }
+
+        let Some(result_share_file) = search_result else {
+            info!("directory request references unknown packet id: {}", packet_id);
+            return;
+        };
+        let Some(file_info) = result_share_file.file_info.iter().find(|file| file.file_id == file_id) else {
+            info!("directory request references unknown file id: {}", file_id);
+            return;
+        };
+
+        let root_path = &file_info.file_name;
+        let stream = match stream_echo.try_clone() {
+            Ok(stream) => stream,
+            Err(err) => {
+                info!("failed to clone directory transfer stream: {}", err);
+                return;
             }
+        };
+        let mut buffer = BufWriter::new(stream);
+        if let Err(err) = send_dir(root_path, &mut buffer) {
+            info!("failed to send shared directory {:?}: {}", root_path, err);
+            return;
+        }
+        if let Err(err) = buffer.flush() {
+            info!("failed to flush shared directory {:?}: {}", root_path, err);
         }
     }
 
