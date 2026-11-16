@@ -412,8 +412,10 @@ fn install_chat_message_styles(window: &Window) {
     let display = gtk::prelude::WidgetExt::display(window);
     let provider = gtk::CssProvider::new();
     provider.load_from_data(
-        ".message-bubble { border-radius: 16px; padding: 10px 14px; }\
-         .message-incoming { background-color: @card_bg_color; }\
+        ".message-history row { background: transparent; padding: 0; }\\
+         .message-history row:hover { background: transparent; }\\
+         .message-bubble { border-radius: 16px; padding: 10px 14px; }\\
+         .message-incoming { background-color: @card_bg_color; }\\
          .message-outgoing { background-color: alpha(@accent_bg_color, 0.18); }"
     );
     gtk::style_context_add_provider_for_display(
@@ -432,17 +434,27 @@ pub fn append_chat_message(
     body: &str,
     outgoing: bool,
 ) {
+    history.add_css_class("message-history");
+
+    let group_key = format!("{}|{}", sender, if outgoing { "out" } else { "in" });
+    let continues_group = history.last_child()
+        .and_then(|child| child.downcast::<ListBoxRow>().ok())
+        .and_then(|previous| previous.tooltip_text())
+        .map(|previous_key| previous_key.as_str() == group_key.as_str())
+        .unwrap_or(false);
+
     let row = ListBoxRow::new();
     row.set_selectable(false);
     row.set_activatable(false);
+    row.set_tooltip_text(Some(&group_key));
 
     let line = GtkBox::new(Orientation::Horizontal, 0);
     line.set_hexpand(true);
     line.set_halign(if outgoing { Align::End } else { Align::Start });
 
     let bubble = GtkBox::new(Orientation::Vertical, 5);
-    bubble.set_margin_top(4);
-    bubble.set_margin_bottom(4);
+    bubble.set_margin_top(if continues_group { 1 } else { 7 });
+    bubble.set_margin_bottom(3);
     bubble.set_margin_start(8);
     bubble.set_margin_end(8);
     bubble.set_hexpand(false);
@@ -450,7 +462,12 @@ pub fn append_chat_message(
     bubble.add_css_class(if outgoing { "message-outgoing" } else { "message-incoming" });
 
     let timestamp = Local::now().format("%H:%M").to_string();
-    let metadata = Label::new(Some(&format!("{}  ·  {}", sender, timestamp)));
+    let metadata_text = if continues_group {
+        timestamp.clone()
+    } else {
+        format!("{}  ·  {}", sender, timestamp)
+    };
+    let metadata = Label::new(Some(&metadata_text));
     metadata.set_xalign(if outgoing { 1.0 } else { 0.0 });
     metadata.add_css_class("dim-label");
     metadata.add_css_class("caption");
