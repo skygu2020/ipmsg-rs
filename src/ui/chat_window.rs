@@ -412,10 +412,10 @@ fn install_chat_message_styles(window: &Window) {
     let display = gtk::prelude::WidgetExt::display(window);
     let provider = gtk::CssProvider::new();
     provider.load_from_data(
-        ".message-history row { background: transparent; padding: 0; }\\
-         .message-history row:hover { background: transparent; }\\
-         .message-bubble { border-radius: 16px; padding: 10px 14px; }\\
-         .message-incoming { background-color: @card_bg_color; }\\
+        ".message-history row { background: transparent; padding: 0; }\
+         .message-history row:hover { background: transparent; }\
+         .message-bubble { border-radius: 16px; padding: 10px 14px; }\
+         .message-incoming { background-color: @card_bg_color; }\
          .message-outgoing { background-color: alpha(@accent_bg_color, 0.18); }"
     );
     gtk::style_context_add_provider_for_display(
