@@ -249,7 +249,12 @@ impl MainWindow {
 
                                 for file in &files {
                                     //win.received_store.insert_with_values(None, &[0, 1, 2, 3, 4, 5], &[&&file.name, &&file.file_id, &&file.packet_id, &&file.attr, &&file.size, &&file.mtime]);
-                                    win.received_store.insert_with_values(None, &[(0, &&file.name), (1, &&file.file_id), (2, &&file.packet_id), (3, &&file.attr), (4, &&file.size), (5, &&file.mtime)]);
+                                    let display_size = if file.attr == crate::constants::protocol::IPMSG_FILE_DIR as u8 {
+                                        "文件夹".to_owned()
+                                    } else {
+                                        crate::ui::chat_window::format_file_size(file.size)
+                                    };
+                                    win.received_store.insert_with_values(None, &[(0, &&file.name), (1, &&file.file_id), (2, &&file.packet_id), (3, &&file.attr), (4, &&file.size), (5, &&file.mtime), (6, &display_size)]);
                                 }
                             }
                             None => {}
