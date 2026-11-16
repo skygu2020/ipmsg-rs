@@ -102,18 +102,36 @@
           </object>
         </child>
         <child>
-          <object class="GtkScrolledWindow">
+          <object class="GtkBox">
+            <property name="orientation">vertical</property>
+            <property name="spacing">6</property>
             <property name="hexpand">1</property>
             <property name="vexpand">1</property>
-            <property name="focusable">1</property>
-            <property name="min_content_width">160</property>
-            <property name="min_content_height">150</property>
-            <property name="child">
-              <object class="GtkListBox" id="list_box_presend">
-                <property name="selection-mode">none</property>
-                <property name="valign">start</property>
+            <child>
+              <object class="GtkLabel">
+                <property name="label" translatable="1">待发送文件</property>
+                <property name="xalign">0</property>
+                <property name="margin-start">4</property>
+                <style>
+                  <class name="heading"/>
+                </style>
               </object>
-            </property>
+            </child>
+            <child>
+              <object class="GtkScrolledWindow">
+                <property name="hexpand">1</property>
+                <property name="vexpand">1</property>
+                <property name="focusable">1</property>
+                <property name="min_content_width">160</property>
+                <property name="min_content_height">150</property>
+                <property name="child">
+                  <object class="GtkListBox" id="list_box_presend">
+                    <property name="selection-mode">none</property>
+                    <property name="valign">start</property>
+                  </object>
+                </property>
+              </object>
+            </child>
             <layout>
               <property name="column">2</property>
               <property name="row">2</property>
