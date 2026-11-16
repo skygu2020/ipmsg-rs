@@ -34,5 +34,6 @@ pub enum ModelEvent {
     DownloadIsBusy { file: ReceivedSimpleFileInfo },
     PutDownloadTaskInPool { file: ReceivedSimpleFileInfo, save_base_path: PathBuf, download_ip: String},
     DownloadProgress { packet_id: u32, file_id: u32, download_ip: String, transferred: u64, total: u64 },
+    DownloadFailed { packet_id: u32, file_id: u32, download_ip: String },
     RemoveDownloadTaskInPool { packet_id: u32, file_id: u32, download_ip: String},
 }
