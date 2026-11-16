@@ -221,7 +221,6 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
             );
 
         let pre_send_files_open_file = pre_send_files_open_file.clone();
-        let file_chooser_tmp = file_chooser.clone();
         let list_box_presend = list_box_presend.clone();
         file_chooser.connect_response(move |d: &gtk::FileChooserDialog, response: gtk::ResponseType| {
             if response == gtk::ResponseType::Ok {
@@ -287,7 +286,6 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
                 &[("选择文件夹", gtk::ResponseType::Ok), ("取消", gtk::ResponseType::Cancel)],
             );
         let pre_send_files_open_dir = pre_send_files.clone();
-        let file_chooser_tmp = file_chooser.clone();
         let list_box_presend = list_box_presend.clone();
         file_chooser.connect_response(move |d: &gtk::FileChooserDialog, response: gtk::ResponseType| {
                 if response == gtk::ResponseType::Ok {
