@@ -409,10 +409,7 @@ fn modify_received_list(received_store :Option<ListStore>, received_files: Arc<R
 
 /// Install theme-aware styling for incoming and outgoing message bubbles.
 fn install_chat_message_styles(window: &Window) {
-    let Some(display) = window.display() else {
-        return;
-    };
-
+    let display = window.display();
     let provider = gtk::CssProvider::new();
     provider.load_from_data(
         ".message-bubble { border-radius: 16px; padding: 10px 14px; }\
