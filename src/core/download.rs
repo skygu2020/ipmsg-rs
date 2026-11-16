@@ -57,7 +57,7 @@ impl ManagerPool {
                     file_info: file_info.clone(),
                 });
             } else {
-                lock.insert(file_info.file_id, PoolFile {
+                lock.insert(task_key.clone(), PoolFile {
                     status: 1,
                     file_info: file_info.clone(),
                 });
@@ -102,8 +102,8 @@ impl ManagerPool {
                         return;
                     }
                 };
-                let mut file = lock.get(&file_info.file_id);
-                if let Some(p_file) = file.take() {
+                let file = lock.get(&task_key).cloned();
+                if let Some(p_file) = file {
                     if is_ok {
                         lock.remove(&task_key);
                         if let Err(err) = GLOBLE_SENDER.send(ModelEvent::RemoveDownloadTaskInPool {
