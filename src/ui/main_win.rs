@@ -21,8 +21,9 @@ impl MainWindow {
         let window = gtk::ApplicationWindow::new(application);
         window.set_title(Some("飞鸽传书"));
         // window.set_position(gtk::WindowPosition::Center);
-        window.set_default_size(200, 500);
-        window.set_resizable(false);
+        window.set_default_size(960, 680);
+        window.set_resizable(true);
+        window.add_css_class("main-window");
         /*window.connect_delete_event(clone!(
         #[weak] window,
         #[upgrade_or]
@@ -41,20 +42,79 @@ impl MainWindow {
             glib::Propagation::Stop
         });
 
-        //纵向
-        let v_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        // Modern two-pane contact layout.
+        let header_bar = gtk::HeaderBar::new();
+        let title_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        let title = Label::new(Some("飞鸽传书"));
+        title.add_css_class("title");
+        let subtitle = Label::new(Some("局域网即时通讯"));
+        subtitle.add_css_class("dim-label");
+        subtitle.add_css_class("caption");
+        title_box.append(&title);
+        title_box.append(&subtitle);
+        header_bar.set_title_widget(Some(&title_box));
+        window.set_titlebar(Some(&header_bar));
+
+        let root = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        root.add_css_class("background");
+
+        let sidebar = gtk::Box::new(gtk::Orientation::Vertical, 8);
+        sidebar.set_width_request(280);
+        sidebar.set_margin_top(16);
+        sidebar.set_margin_bottom(12);
+        sidebar.set_margin_start(12);
+        sidebar.set_margin_end(12);
+
+        let contacts_heading = Label::new(Some("联系人"));
+        contacts_heading.set_xalign(0.0);
+        contacts_heading.add_css_class("title-2");
+        let contacts_hint = Label::new(Some("当前局域网内的在线用户"));
+        contacts_hint.set_xalign(0.0);
+        contacts_hint.add_css_class("dim-label");
+        contacts_hint.add_css_class("caption");
+        sidebar.append(&contacts_heading);
+        sidebar.append(&contacts_hint);
 
         let label = Label::new(Option::from(""));
-        let scrolled = ScrolledWindow::new();//None::<&gtk::Adjustment>, None::<&gtk::Adjustment>
+        label.set_xalign(0.0);
+        label.add_css_class("dim-label");
+        label.add_css_class("caption");
+
+        let scrolled = ScrolledWindow::new();
         scrolled.set_policy(gtk::PolicyType::Automatic, gtk::PolicyType::Automatic);
+        scrolled.set_vexpand(true);
+        scrolled.set_hexpand(true);
+        scrolled.set_min_content_height(300);
+        scrolled.add_css_class("card");
+
         let tree = create_and_setup_view();
         let model = create_and_fill_model();
         tree.set_model(Some(&model));
+        tree.add_css_class("navigation-sidebar");
         scrolled.set_child(Some(&tree));
-        scrolled.set_min_content_height(450);
-        // v_box.add(&menu_bar);
-        v_box.append(&scrolled);
-        v_box.append(&label);
+        sidebar.append(&scrolled);
+        sidebar.append(&label);
+
+        let separator = gtk::Separator::new(gtk::Orientation::Vertical);
+        let welcome = gtk::Box::new(gtk::Orientation::Vertical, 12);
+        welcome.set_hexpand(true);
+        welcome.set_vexpand(true);
+        welcome.set_halign(gtk::Align::Center);
+        welcome.set_valign(gtk::Align::Center);
+        let welcome_icon = gtk::Image::from_icon_name("network-workgroup-symbolic");
+        welcome_icon.set_pixel_size(64);
+        welcome_icon.add_css_class("dim-label");
+        let welcome_title = Label::new(Some("飞鸽传书"));
+        welcome_title.add_css_class("title-1");
+        let welcome_text = Label::new(Some("选择左侧联系人，双击即可开始聊天"));
+        welcome_text.add_css_class("dim-label");
+        welcome.append(&welcome_icon);
+        welcome.append(&welcome_title);
+        welcome.append(&welcome_text);
+
+        root.append(&sidebar);
+        root.append(&separator);
+        root.append(&welcome);
         GLOBLE_SENDER.send(ModelEvent::UserListSelected(String::from("未选择"))).unwrap();
 
         tree.connect_cursor_changed( move |tree_view| {
@@ -226,7 +286,7 @@ impl MainWindow {
                 };
             }
         });
-        window.set_child(Some(&v_box));
+        window.set_child(Some(&root));
         window.present();
         MainWindow {}
     }
