@@ -34,6 +34,11 @@ impl ManagerPool {
                 Ok(lock) => lock,
                 Err(err) => {
                     log::error!("download task pool lock poisoned: {}", err);
+                    if let Err(send_err) = GLOBLE_SENDER.send(ModelEvent::DownloadIsBusy {
+                        file: file_info,
+                    }) {
+                        log::error!("failed to report unavailable download task: {}", send_err);
+                    }
                     return;
                 }
             };
