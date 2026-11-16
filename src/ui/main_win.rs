@@ -271,7 +271,7 @@ impl MainWindow {
                                 win.win.show();
                             }
                             None => {
-                                let chat_win = crate::ui::chat_window::create_chat_window(display_name, ip.clone(), income_user.host.clone());
+                                let chat_win = crate::ui::chat_window::create_chat_window(display_name, ip.clone(), contact_host(&model, &ip));
                                 chat_win.win.show();
                                 chat_windows.insert(ip.clone(), chat_win);
 
