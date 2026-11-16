@@ -176,7 +176,7 @@ impl MainWindow {
                     UiEvent::OpenOrReOpenChatWindow { name, ip } => {
                         info!("winds 的长度 {:?}", chat_windows.len());
                         if !chat_windows.contains_key(&ip) {
-                            let chat_win = crate::ui::chat_window::create_chat_window(name, ip.clone());
+                            let chat_win = crate::ui::chat_window::create_chat_window(name, ip.clone(), model.iter_first().map(|iter| model.get_value(&iter, 3).get::<String>().unwrap_or_default()).unwrap_or_default());
                             chat_windows.insert(ip.clone(), chat_win);
                         }
                     }
@@ -241,7 +241,7 @@ impl MainWindow {
                         // Keep an already-open chat window in sync with the
                         // latest identity received from the contact.
                         if let Some(chat_win) = chat_windows.get(&income_user.ip) {
-                            chat_win.update_peer_name(&display_name);
+                            chat_win.update_peer_identity(&display_name, &income_user.host);
                         }
                     }
                     UiEvent::CloseChatWindow(ip) => {
@@ -251,11 +251,11 @@ impl MainWindow {
                         let display_name = contact_display_name(&name);
                         match chat_windows.get(&ip) {
                             Some(win) => {
-                                win.update_peer_name(&display_name);
+                                win.update_peer_identity(&display_name, &model.iter_first().map(|iter| model.get_value(&iter, 3).get::<String>().unwrap_or_default()).unwrap_or_default());
                                 win.win.show();
                             }
                             None => {
-                                let chat_win = crate::ui::chat_window::create_chat_window(display_name, ip.clone());
+                                let chat_win = crate::ui::chat_window::create_chat_window(display_name, ip.clone(), income_user.host.clone());
                                 chat_win.win.show();
                                 chat_windows.insert(ip.clone(), chat_win);
 
