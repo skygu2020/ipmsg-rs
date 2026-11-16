@@ -429,7 +429,7 @@ fn append_queued_file(
     list_box.append(&row);
 }
 
-fn format_file_size(size: u64) -> String {
+pub(crate) fn format_file_size(size: u64) -> String {
     const UNITS: [&str; 4] = ["B", "KB", "MB", "GB"];
     let mut value = size as f64;
     let mut unit = 0usize;
