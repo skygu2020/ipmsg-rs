@@ -75,6 +75,7 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
     let drop_target = gtk::DropTarget::new(gdk::FileList::static_type(), gdk::DragAction::COPY);
     drop_target.connect_drop(clone!(
         #[strong] pre_send_files,
+        #[strong] list_box_presend,
         move |_, value, _, _| {
             let Ok(file_list) = value.get::<gdk::FileList>() else {
                 return false;
@@ -96,6 +97,7 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
     chat_window.add_controller(drop_target);
 
     btn_send.connect_clicked(clone!(
+        #[strong] list_box_presend,
         #[strong] host_ip,
         #[strong] text_view_presend,
         move|_|{
@@ -164,6 +166,7 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
     let pre_send_files_open_file = pre_send_files.clone();
     let chat_window_open_save = chat_window_open_save.clone();
     btn_file.connect_clicked(clone!(
+        #[strong] list_box_presend,
         #[weak] chat_window_open_save,
         move|_|{
 
@@ -176,6 +179,7 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
 
         let pre_send_files_open_file = pre_send_files_open_file.clone();
         let file_chooser_tmp = file_chooser.clone();
+        let list_box_presend = list_box_presend.clone();
         file_chooser.connect_response(move |d: &gtk::FileChooserDialog, response: gtk::ResponseType| {
             if response == gtk::ResponseType::Ok {
                 let filename: PathBuf = file_chooser_tmp.clone().file().unwrap().path().unwrap();
@@ -202,8 +206,6 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
                     atime: Local::now().time(),
                     crtime: Local::now().time()
                 };
-                let ref mut files_add = *pre_send_files_open_file.borrow_mut();
-                files_add.push(file_info.clone());//添加待发送文件
                 append_queued_file(&list_box_presend, &pre_send_files_open_file, file_info);
             }
             d.close();
@@ -214,6 +216,7 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
 
     let chat_window_open_save = chat_window_open_save.clone();
     btn_dir.connect_clicked(clone!(
+        #[strong] list_box_presend,
         #[strong] pre_send_files,
         #[weak] chat_window_open_save,
         move|_|{
@@ -225,6 +228,7 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
             );
         let pre_send_files_open_dir = pre_send_files.clone();
         let file_chooser_tmp = file_chooser.clone();
+        let list_box_presend = list_box_presend.clone();
         file_chooser.connect_response(move |d: &gtk::FileChooserDialog, response: gtk::ResponseType| {
                 if response == gtk::ResponseType::Ok {
                     let filename: PathBuf = file_chooser_tmp.file().unwrap().path().unwrap();
@@ -251,8 +255,6 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
                         atime: Local::now().time(),
                         crtime: Local::now().time(),
                     };
-                    let ref mut files_add = *pre_send_files_open_dir.borrow_mut();
-                    files_add.push(file_info.clone());//添加待发送文件
                     append_queued_file(&list_box_presend, &pre_send_files_open_dir, file_info);
                 }
                 d.close();
@@ -349,11 +351,13 @@ fn append_queued_file(
     row.set_child(Some(&content));
 
     files.borrow_mut().push(file_info);
+    let files_for_cancel = files.clone();
     cancel.connect_clicked(glib::clone!(
+        #[strong] files_for_cancel,
         #[weak] row,
         #[weak] list_box,
         move |_| {
-            files.borrow_mut().retain(|file| file.file_id != file_id);
+            files_for_cancel.borrow_mut().retain(|file| file.file_id != file_id);
             list_box.remove(&row);
         }
     ));
@@ -374,11 +378,6 @@ fn append_column(tree: &TreeView, id: i32, title: &str) {
     column.add_attribute(&cell, "text", id);
     tree.append_column(&column);
     tree.set_headers_visible(true);
-}
-
-fn create_and_fill_model() -> ListStore {
-    let model = ListStore::new(&[String::static_type(), String::static_type()]);
-    model
 }
 
 fn create_and_fill_model1() -> ListStore {
