@@ -115,7 +115,7 @@ pub fn download<A: ToSocketAddrs, S: AsRef<Path>>(addr: A, to_path: S, r_file: R
     } else if file_type != IPMSG_FILE_DIR {
         return Err(anyhow!("unsupported download file type: {:#x}", file_type));
     }
-    let mut stream = TcpStream::connect(addr)?;
+    let mut stream = connect_with_timeout(addr, std::time::Duration::from_secs(15))?;
     // Do not let a stalled peer block the download worker indefinitely.
     // The longer read timeout accommodates slower directory and file transfers.
     stream.set_read_timeout(Some(std::time::Duration::from_secs(60)))?;
@@ -212,6 +212,29 @@ pub fn download<A: ToSocketAddrs, S: AsRef<Path>>(addr: A, to_path: S, r_file: R
     }
     info!("download end!");
     Ok(())
+}
+
+// Resolve all candidate addresses and bound each TCP connection attempt.
+fn connect_with_timeout<A: ToSocketAddrs>(
+    addr: A,
+    timeout: std::time::Duration,
+) -> Result<TcpStream> {
+    let mut last_error = None;
+    let mut attempted = false;
+
+    for address in addr.to_socket_addrs()? {
+        attempted = true;
+        match TcpStream::connect_timeout(&address, timeout) {
+            Ok(stream) => return Ok(stream),
+            Err(err) => last_error = Some(err),
+        }
+    }
+
+    if !attempted {
+        return Err(anyhow!("download address resolved to no socket addresses"));
+    }
+
+    Err(last_error.expect("at least one address was attempted").into())
 }
 
 // Check every directory below the user-selected root before writing into it.
