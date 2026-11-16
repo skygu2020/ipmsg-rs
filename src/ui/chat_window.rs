@@ -67,6 +67,8 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
     tree_view_received.selection().set_mode(gtk::SelectionMode::Single);
     append_column(&tree_view_received, 0, "文件名");
     append_column(&tree_view_received, 6, "大小");
+    append_column(&tree_view_received, 7, "进度");
+    append_column(&tree_view_received, 8, "状态");
 
     list_box_presend.set_selection_mode(gtk::SelectionMode::None);
     list_box_presend.set_tooltip_text(Some("可将文件或文件夹拖放到此处添加到待发送列表"));
@@ -478,10 +480,27 @@ fn show_queued_files_empty_state(list_box: &ListBox) {
 fn append_column(tree: &TreeView, id: i32, title: &str) {
     let column = TreeViewColumn::new();
     let cell = CellRendererText::new();
+    if id == 7 {
+        let progress = gtk::CellRendererProgress::new();
+        column.set_sizing(gtk::TreeViewColumnSizing::Fixed);
+        column.set_fixed_width(112);
+        column.set_expand(false);
+        column.set_resizable(false);
+        column.pack_start(&progress, true);
+        column.add_attribute(&progress, "value", id);
+        column.set_title(title);
+        tree.append_column(&column);
+        return;
+    }
     if id == 6 {
         cell.set_xalign(1.0);
         column.set_sizing(gtk::TreeViewColumnSizing::Fixed);
         column.set_fixed_width(76);
+        column.set_expand(false);
+    } else if id == 8 {
+        cell.set_xalign(0.0);
+        column.set_sizing(gtk::TreeViewColumnSizing::Fixed);
+        column.set_fixed_width(92);
         column.set_expand(false);
     } else {
         cell.set_xalign(0.0);
@@ -495,7 +514,11 @@ fn append_column(tree: &TreeView, id: i32, title: &str) {
 }
 
 fn create_and_fill_model1() -> ListStore {
-    let model = ListStore::new(&[String::static_type(), u32::static_type(), u32::static_type(), u8::static_type(), u64::static_type(), i64::static_type(), String::static_type()]);
+    let model = ListStore::new(&[
+        String::static_type(), u32::static_type(), u32::static_type(),
+        u8::static_type(), u64::static_type(), i64::static_type(),
+        String::static_type(), i32::static_type(), String::static_type(),
+    ]);
     model
 }
 
