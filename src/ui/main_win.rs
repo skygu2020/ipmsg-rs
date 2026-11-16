@@ -254,10 +254,44 @@ impl MainWindow {
                                     } else {
                                         crate::ui::chat_window::format_file_size(file.size)
                                     };
-                                    win.received_store.insert_with_values(None, &[(0, &&file.name), (1, &&file.file_id), (2, &&file.packet_id), (3, &&file.attr), (4, &&file.size), (5, &&file.mtime), (6, &display_size)]);
+                                    let initial_status = "等待下载".to_owned();
+                                    win.received_store.insert_with_values(None, &[
+                                        (0, &&file.name), (1, &&file.file_id), (2, &&file.packet_id),
+                                        (3, &&file.attr), (4, &&file.size), (5, &&file.mtime),
+                                        (6, &display_size), (7, &0i32), (8, &initial_status),
+                                    ]);
                                 }
                             }
                             None => {}
+                        }
+                    }
+                    UiEvent::DownloadProgress { packet_id, file_id, download_ip, transferred, total } => {
+                        if let Some(win) = chat_windows.get(&download_ip) {
+                            let store = &win.received_store;
+                            if let Some(mut iter) = store.iter_first() {
+                                loop {
+                                    let row_file_id = store.get_value(&iter, 1).get::<u32>().unwrap_or_default();
+                                    let row_packet_id = store.get_value(&iter, 2).get::<u32>().unwrap_or_default();
+                                    if row_file_id == file_id && row_packet_id == packet_id {
+                                        let percent = if total == 0 {
+                                            0
+                                        } else {
+                                            ((transferred.saturating_mul(100) / total).min(100)) as i32
+                                        };
+                                        let status = if total == 0 {
+                                            format!("已接收 {}", crate::ui::chat_window::format_file_size(transferred))
+                                        } else {
+                                            format!("{}%", percent)
+                                        };
+                                        store.set_value(&iter, 7, &percent.to_value());
+                                        store.set_value(&iter, 8, &status.to_value());
+                                        break;
+                                    }
+                                    if !store.iter_next(&mut iter) {
+                                        break;
+                                    }
+                                }
+                            }
                         }
                     }
                     UiEvent::RemoveInReceivedList { packet_id, file_id, download_ip } => {
