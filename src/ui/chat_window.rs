@@ -40,6 +40,12 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
 
     let chat_window: Window = builder.object("chat_window").unwrap();
     chat_window.set_title(Some(chat_title));
+
+    // Show the actual peer identity in the in-window conversation header too.
+    let conversation_title: Label = builder.object("conversation_title").unwrap();
+    conversation_title.set_text(&name);
+    let conversation_subtitle: Label = builder.object("conversation_subtitle").unwrap();
+    conversation_subtitle.set_text(&format!("{} · 局域网联系人", host_ip));
     // chat_window.set_border_width(5);
     // 消息历史使用独立行和气泡布局。
     let history_list: ListBox = builder.object("history_list").unwrap();
