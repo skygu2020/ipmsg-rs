@@ -2,7 +2,7 @@
 use std::sync::{Mutex, Arc};
 use std::net::{TcpStream, TcpListener};
 use std::thread;
-use std::io::{Read, Write, BufWriter};
+use std::io::{Read, Write, BufWriter, Seek, SeekFrom};
 use std::path::PathBuf;
 use std::fs::{self, File, Metadata};
 use encoding::{Encoding, DecoderTrap};
@@ -114,13 +114,40 @@ impl FileServer {
             if let Some(result_share_file) = search_result {
                 let file_info = result_share_file.file_info.iter().find(|f| f.file_id == file_id as u32);
                 if let Some(file_info) = file_info {
-                    let mut f: File = File::open(&file_info.file_name).unwrap();
-                    let mut buf = [0; 1024];
+                    // IPMSG_GETFILEDATA carries the byte offset in the third
+                    // field. Honour it so clients can resume an interrupted transfer.
+                    let mut f = match File::open(&file_info.file_name) {
+                        Ok(file) => file,
+                        Err(err) => {
+                            info!("failed to open shared file {:?}: {}", file_info.file_name, err);
+                            return;
+                        }
+                    };
+                    if let Err(err) = f.seek(SeekFrom::Start(offset as u64)) {
+                        info!("failed to seek shared file {:?} to {}: {}", file_info.file_name, offset, err);
+                        return;
+                    }
+
+                    let mut buf = [0; 16 * 1024];
                     let mut buffer = BufWriter::new(stream_echo);
-                    while let Ok(bytes_read) = f.read(&mut buf) {
-                        if bytes_read == 0 { break; }
-                        buffer.write(&buf[..bytes_read]).unwrap();
-                        buffer.flush().unwrap();
+                    loop {
+                        match f.read(&mut buf) {
+                            Ok(0) => break,
+                            Ok(bytes_read) => {
+                                if let Err(err) = buffer.write_all(&buf[..bytes_read]) {
+                                    info!("failed to send shared file {:?}: {}", file_info.file_name, err);
+                                    return;
+                                }
+                            }
+                            Err(err) if err.kind() == std::io::ErrorKind::Interrupted => continue,
+                            Err(err) => {
+                                info!("failed to read shared file {:?}: {}", file_info.file_name, err);
+                                return;
+                            }
+                        }
+                    }
+                    if let Err(err) = buffer.flush() {
+                        info!("failed to flush shared file {:?}: {}", file_info.file_name, err);
                     }
                 }
             }
