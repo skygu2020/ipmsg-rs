@@ -116,6 +116,10 @@ pub fn download<A: ToSocketAddrs, S: AsRef<Path>>(addr: A, to_path: S, r_file: R
         return Err(anyhow!("unsupported download file type: {:#x}", file_type));
     }
     let mut stream = TcpStream::connect(addr)?;
+    // Do not let a stalled peer block the download worker indefinitely.
+    // The longer read timeout accommodates slower directory and file transfers.
+    stream.set_read_timeout(Some(std::time::Duration::from_secs(60)))?;
+    stream.set_write_timeout(Some(std::time::Duration::from_secs(30)))?;
     let packet = Packet::new(IPMSG_SENDMSG| if file_type == IPMSG_FILE_DIR { IPMSG_GETDIRFILES } else { IPMSG_GETFILEDATA }, Some(format!("{:x}:{:x}:0:\u{0}", r_file.packet_id, r_file.file_id)));
     // TCP writes may be partial; ensure the complete request reaches the peer.
     stream.write_all(packet.to_string().as_bytes())?;
