@@ -97,7 +97,6 @@
                         <property name="margin-end">10</property>
                         <property name="margin-top">10</property>
                         <property name="margin-bottom">10</property>
-                        <style><class name="boxed-list"/></style>
                       </object>
                     </property>
                     <style><class name="card"/></style>
