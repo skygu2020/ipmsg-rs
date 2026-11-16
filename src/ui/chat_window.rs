@@ -245,8 +245,6 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
 
     chat_window.connect_close_request(clone!(
         #[strong] host_ip,
-        #[upgrade_or]
-        glib::signal::Inhibit(false),
         move |window| {
         GLOBLE_SENDER.send(ModelEvent::ClickChatWindowCloseBtn{from_ip: host_ip.clone()}).unwrap();
         /*if let Some(application) = window.application() {
