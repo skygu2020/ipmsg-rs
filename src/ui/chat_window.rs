@@ -40,6 +40,7 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
 
     let chat_window: Window = builder.object("chat_window").unwrap();
     chat_window.set_title(Some(chat_title));
+    install_chat_message_styles(&chat_window);
 
     // Show the actual peer identity in the in-window conversation header too.
     let conversation_title: Label = builder.object("conversation_title").unwrap();
@@ -406,6 +407,25 @@ fn modify_received_list(received_store :Option<ListStore>, received_files: Arc<R
     Continue(false)
 }*/
 
+/// Install theme-aware styling for incoming and outgoing message bubbles.
+fn install_chat_message_styles(window: &Window) {
+    let Some(display) = window.display() else {
+        return;
+    };
+
+    let provider = gtk::CssProvider::new();
+    provider.load_from_data(
+        ".message-bubble { border-radius: 16px; padding: 10px 14px; }\
+         .message-incoming { background-color: @card_bg_color; }\
+         .message-outgoing { background-color: alpha(@accent_bg_color, 0.18); }"
+    );
+    gtk::style_context_add_provider_for_display(
+        &display,
+        &provider,
+        gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+    );
+}
+
 /// Append one message as a chat bubble. Incoming messages align left; our own
 /// messages align right. The timestamp is rendered separately from the body.
 pub fn append_chat_message(
@@ -424,13 +444,12 @@ pub fn append_chat_message(
     line.set_halign(if outgoing { Align::End } else { Align::Start });
 
     let bubble = GtkBox::new(Orientation::Vertical, 5);
-    bubble.set_margin_top(8);
-    bubble.set_margin_bottom(8);
-    bubble.set_margin_start(12);
-    bubble.set_margin_end(12);
-    bubble.set_size_request(180, -1);
+    bubble.set_margin_top(4);
+    bubble.set_margin_bottom(4);
+    bubble.set_margin_start(8);
+    bubble.set_margin_end(8);
     bubble.set_hexpand(false);
-    bubble.add_css_class("card");
+    bubble.add_css_class("message-bubble");
     bubble.add_css_class(if outgoing { "message-outgoing" } else { "message-incoming" });
 
     let timestamp = Local::now().format("%H:%M").to_string();
