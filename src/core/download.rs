@@ -159,7 +159,7 @@ fn validate_transfer_name(name: &str) -> Result<()> {
     if name.is_empty()
         || name == "."
         || name == ".."
-        || name.contains(['/', '\\\\', ':', '\\0'])
+        || name.contains(['/', '\\', ':', '\0'])
         || Path::new(name).components().any(|component| {
             !matches!(component, Component::Normal(_))
         })
