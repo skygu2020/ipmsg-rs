@@ -61,7 +61,6 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
     let btn_dir: Button = builder.object("btn_dir").unwrap();
 
     //let text_view_presend_clone = text_view_presend.clone();
-    let text_view_history_clone = text_view_history.clone();
     //let arc_received_files: Arc<RefCell<Vec<ReceivedSimpleFileInfo>>> = Arc::new(RefCell::new(Vec::new()));
     let pre_send_files: Arc<RefCell<Vec<model::FileInfo>>> = Arc::new(RefCell::new(Vec::new()));//待发送文件列表
     let pre_send_files_model = create_and_fill_model();
@@ -75,7 +74,7 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
         #[strong] host_ip,
         #[strong] text_view_presend,
         move|_|{
-        let (start_iter, mut end_iter) = text_view_presend.buffer().bounds();
+        let (start_iter, end_iter) = text_view_presend.buffer().bounds();
         let context :&str = &text_view_presend.buffer().text(&start_iter, &end_iter, false);
         let (packet, share_file) = message::create_sendmsg(context.to_owned(), files_send_clone.clone().borrow().to_vec(), host_ip.clone());
         GLOBLE_SENDER.send(ModelEvent::SendOneMsg {to_ip: host_ip.clone(), packet, context: context.to_owned(), files: share_file}).unwrap();
@@ -89,7 +88,7 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
     tree_view_received.connect_row_activated(clone!(
         #[weak] chat_window_open_save,
         #[strong] host_ip,
-        move |tree_view, tree_path, tree_view_column| {
+        move |tree_view, _tree_path, _tree_view_column| {
         let selection = tree_view.selection();
         if let Some((model, iter)) = selection.selected() {
             let name: String = model.get_value(&iter, 0).get().unwrap();
@@ -112,14 +111,16 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
                     let file = d.file().expect("Couldn't get file");
                     let save_base_path: PathBuf = file.path().expect("Couldn't get file path");
                     info!("choosed {:?} {:?} {:?} {:?} {:?}", name, fid, pid, save_base_path, file_type);
-                    GLOBLE_SENDER.send(ModelEvent::PutDownloadTaskInPool{ file: ReceivedSimpleFileInfo{
+                    if let Err(err) = GLOBLE_SENDER.send(ModelEvent::PutDownloadTaskInPool{ file: ReceivedSimpleFileInfo{
                         file_id: fid,
                         packet_id: pid,
                         name: name.clone(),
                         attr: file_type,
                         size,
                         mtime
-                    }, save_base_path, download_ip: host_ip.clone() });
+                    }, save_base_path, download_ip: host_ip.clone() }) {
+                        log::warn!("failed to queue file download: {}", err);
+                    }
                 }
                 d.close();
             });
@@ -135,7 +136,6 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
     },
     ));
 
-    let chat_window_open_file = chat_window.clone();
     let pre_send_files_open_file = pre_send_files.clone();
     let chat_window_open_save = chat_window_open_save.clone();
     btn_file.connect_clicked(clone!(
@@ -175,7 +175,7 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
                     name: name.to_owned(),
                     attr: attr as u8,
                     size: size,
-                    mtime: Local::now().time(),
+                    mtime: local_time.time(),
                     atime: Local::now().time(),
                     crtime: Local::now().time()
                 };
@@ -190,8 +190,6 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
     },
     ));
 
-    let chat_window_open_dir = chat_window.clone();
-    let pre_send_files_open_dir = pre_send_files.clone();
     let chat_window_open_save = chat_window_open_save.clone();
     btn_dir.connect_clicked(clone!(
         #[strong] pre_send_files_model,
