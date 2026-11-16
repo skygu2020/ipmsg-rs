@@ -144,15 +144,24 @@ fn read_bytes(stream : &mut BufReader<TcpStream>, len: u64) -> Result<String> {
     Ok(GB18030.decode(s_buffer.as_slice(), DecoderTrap::Ignore).map_err(|e| anyhow!("{:?}", e))?)
 }
 
-fn read_bytes_to_file(stream : &mut BufReader<TcpStream>, len: u64, file_path: &PathBuf) -> Result<()> {
-    let mut f: File = File::create(file_path).unwrap();
+fn read_bytes_to_file(stream: &mut BufReader<TcpStream>, len: u64, file_path: &PathBuf) -> Result<()> {
+    let mut file = File::create(file_path)?;
     info!("file len {:?}", len);
-    let mut handler = stream.take(len as u64);
-    let mut buf = [0; 1024 * 4];
-    while let Ok(bytes_read) = handler.read(&mut buf) {
-        if bytes_read == 0 { break; }
-        f.write(&buf[..bytes_read])?;
+
+    // A TCP read may return fewer bytes than requested. Copy exactly the
+    // advertised payload length and report an early EOF as a failed download.
+    let mut limited_stream = stream.take(len);
+    let copied = std::io::copy(&mut limited_stream, &mut file)?;
+    if copied != len {
+        return Err(anyhow!(
+            "incomplete file transfer for {:?}: expected {} bytes, received {}",
+            file_path,
+            len,
+            copied
+        ));
     }
+
+    file.flush()?;
     Ok(())
 }
 
