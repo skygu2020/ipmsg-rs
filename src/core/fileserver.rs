@@ -41,9 +41,42 @@ impl FileServer {
                 let src = base_stream.peer_addr().unwrap();
                 thread::spawn(move || {
                     let mut stream_echo = base_stream;
-                    let mut buf = [0; 2048];
-                    let byte_size = stream_echo.read(&mut buf[..]).unwrap();
-                    let tmp_str = GB18030.decode(&buf[0..byte_size], DecoderTrap::Strict).unwrap();
+                    let mut request = Vec::with_capacity(256);
+                    let mut byte = [0u8; 1];
+
+                    // TCP is a byte stream: do not assume one read contains
+                    // the complete NUL-terminated IPMSG request.
+                    let read_result = loop {
+                        if request.len() >= 8192 {
+                            break Err(std::io::Error::new(
+                                std::io::ErrorKind::InvalidData,
+                                "file request exceeds 8192 bytes",
+                            ));
+                        }
+
+                        match stream_echo.read_exact(&mut byte) {
+                            Ok(()) => {
+                                request.push(byte[0]);
+                                if byte[0] == 0 {
+                                    break Ok(());
+                                }
+                            }
+                            Err(err) => break Err(err),
+                        }
+                    };
+
+                    if let Err(err) = read_result {
+                        info!("failed to read complete TCP file request from {:?}: {}", src, err);
+                        return;
+                    }
+
+                    let tmp_str = match GB18030.decode(&request, DecoderTrap::Strict) {
+                        Ok(value) => value,
+                        Err(err) => {
+                            info!("invalid GB18030 TCP file request from {:?}: {:?}", src, err);
+                            return;
+                        }
+                    };
                     info!("file_processer receive raw str {:?}", tmp_str);
                     let result = packet_parser().parse(tmp_str.as_str());
                     match result {
