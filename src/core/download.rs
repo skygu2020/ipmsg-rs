@@ -185,11 +185,13 @@ where
         let mut next_path = destination_root.clone();
         let mut directory_depth = 0usize;
         let mut directory_transferred = 0u64;
+        let mut root_completed = false;
         let mut buffer = BufReader::new(stream);
         loop {
             let header_size_str = match read_delimiter(&mut buffer)? {
                 Some(value) => value,
-                None => break,
+                None if root_completed => break,
+                None => return Err(anyhow!("directory transfer ended before its root directory terminator")),
             };
             let header_size = u64::from_str_radix(&header_size_str, 16)?;
             info!("header_size {:?}", header_size);
@@ -259,6 +261,9 @@ where
                 }
                 next_path.pop();
                 directory_depth -= 1;
+                if directory_depth == 0 {
+                    root_completed = true;
+                }
                 info!("back to parent {:?}", next_path);
             }else {
                 return Err(anyhow!("unsupported directory entry type: {:#x}", file_attr));
