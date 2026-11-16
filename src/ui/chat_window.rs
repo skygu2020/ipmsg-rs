@@ -68,6 +68,44 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
     let pre_send_files: Arc<RefCell<Vec<model::FileInfo>>> = Arc::new(RefCell::new(Vec::new()));//待发送文件列表
     let pre_send_files_model = create_and_fill_model();
     tree_view_presend.set_model(Some(&pre_send_files_model));
+
+    // Right-click a queued attachment to remove it without sending.
+    let remove_popover = gtk::Popover::new();
+    let remove_button = Button::with_label("取消添加");
+    remove_popover.set_child(Some(&remove_button));
+    remove_popover.set_parent(&tree_view_presend);
+    remove_button.connect_clicked(clone!(
+        #[strong] pre_send_files,
+        #[strong] pre_send_files_model,
+        #[weak] remove_popover,
+        #[weak] tree_view_presend,
+        move |_| {
+            if let Some((_, iter)) = tree_view_presend.selection().selected() {
+                let id_text = pre_send_files_model.get_value(&iter, 1).get::<String>().unwrap_or_default();
+                if let Ok(file_id) = id_text.parse::<u32>() {
+                    pre_send_files.borrow_mut().retain(|file| file.file_id != file_id);
+                    pre_send_files_model.remove(&iter);
+                }
+            }
+            remove_popover.popdown();
+        }
+    ));
+    let right_click = gtk::GestureClick::new();
+    right_click.set_button(3);
+    right_click.connect_pressed(clone!(
+        #[weak] remove_popover,
+        #[weak] tree_view_presend,
+        move |_, _, x, y| {
+            if let Some((path, _, _, _)) = tree_view_presend.path_at_pos(x as i32, y as i32) {
+                tree_view_presend.selection().select_path(&path);
+                remove_popover.set_pointing_to(Some(&gtk::gdk::Rectangle::new(x as i32, y as i32, 1, 1)));
+                remove_popover.popup();
+            } else {
+                remove_popover.popdown();
+            }
+        }
+    ));
+    tree_view_presend.add_controller(right_click);
     //let pre_send_files_model_send = pre_send_files_model.clone();
     let pre_received_files_model = create_and_fill_model1();
     tree_view_received.set_model(Some(&pre_received_files_model));
