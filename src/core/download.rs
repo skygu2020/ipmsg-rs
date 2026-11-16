@@ -89,11 +89,24 @@ pub fn download<A: ToSocketAddrs, S: AsRef<Path>>(addr: A, to_path: S, r_file: R
     }else if file_type == IPMSG_FILE_DIR {
         let mut next_path = to_path.as_ref().to_path_buf();
         let mut buffer = BufReader::new(stream);
-        while let Ok(Some(header_size_str)) = read_delimiter(&mut buffer) {
+        loop {
+            let header_size_str = match read_delimiter(&mut buffer)? {
+                Some(value) => value,
+                None => break,
+            };
             let header_size = u64::from_str_radix(&header_size_str, 16)?;
             info!("header_size {:?}", header_size);
-            let header_context_str = read_bytes(&mut buffer, header_size - 1 - header_size_str.as_bytes().len() as u64)?;//-1是减去的那个冒号
+
+            // The size includes the four-byte length prefix and its delimiter.
+            let prefix_len = u64::try_from(header_size_str.len())?;
+            let context_len = header_size
+                .checked_sub(prefix_len + 1)
+                .ok_or_else(|| anyhow!("invalid directory header length: {}", header_size))?;
+            let header_context_str = read_bytes(&mut buffer, context_len)?;
             let v: Vec<&str> = header_context_str.splitn(4, |c| c == ':').collect();
+            if v.len() < 3 {
+                return Err(anyhow!("invalid directory file header: {:?}", header_context_str));
+            }
             let file_name = v[0];
             let file_size = u64::from_str_radix(v[1], 16)?;
             let file_attr = u32::from_str_radix(v[2], 16)?;
@@ -122,26 +135,29 @@ pub fn download<A: ToSocketAddrs, S: AsRef<Path>>(addr: A, to_path: S, r_file: R
     Ok(())
 }
 
-fn read_delimiter(stream : &mut BufReader<TcpStream>) -> Result<Option<String>> {
-    let mut s_buffer = Vec::new();
-    let len = stream.read_until(u8::try_from(IPMSG_PACKET_DELIMITER)?, &mut s_buffer)?;
-    if len != 0usize {
-        if len > 200 {
-            return Err(anyhow!("read_delimiter error!"));
-        }else {
-            s_buffer.pop();
-            Ok(Some(String::from_utf8(s_buffer).unwrap()))
-        }
-    }else {
-        Ok(None)
+fn read_delimiter(stream: &mut BufReader<TcpStream>) -> Result<Option<String>> {
+    let mut buffer = Vec::new();
+    let len = stream.read_until(u8::try_from(IPMSG_PACKET_DELIMITER)?, &mut buffer)?;
+    if len == 0 {
+        return Ok(None);
     }
+    if len > 200 {
+        return Err(anyhow!("directory header length prefix exceeds 200 bytes"));
+    }
+    if buffer.last().copied() != Some(u8::try_from(IPMSG_PACKET_DELIMITER)?) {
+        return Err(anyhow!("connection closed in the middle of a directory header"));
+    }
+
+    buffer.pop();
+    Ok(Some(String::from_utf8(buffer)?))
 }
 
-fn read_bytes(stream : &mut BufReader<TcpStream>, len: u64) -> Result<String> {
-    let mut s_buffer = Vec::new();
-    let mut handler = stream.take(len);
-    handler.read_to_end(&mut s_buffer)?;
-    Ok(GB18030.decode(s_buffer.as_slice(), DecoderTrap::Ignore).map_err(|e| anyhow!("{:?}", e))?)
+fn read_bytes(stream: &mut BufReader<TcpStream>, len: u64) -> Result<String> {
+    let len = usize::try_from(len)?;
+    let mut buffer = vec![0; len];
+    stream.read_exact(&mut buffer)?;
+    Ok(GB18030.decode(&buffer, DecoderTrap::Strict)
+        .map_err(|err| anyhow!("invalid GB18030 directory header: {:?}", err))?)
 }
 
 fn read_bytes_to_file(stream: &mut BufReader<TcpStream>, len: u64, file_path: &PathBuf) -> Result<()> {
