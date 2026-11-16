@@ -25,6 +25,7 @@ pub struct ChatWindow {
     pub history_list: ListBox,
     pub history_scroller: gtk::ScrolledWindow,
     pub ip :String,
+    pub host: String,
     pub pre_send_files :Arc<RefCell<Vec<model::FileInfo>>>,
     pub received_store :ListStore,
     pub conversation_title: Label,
@@ -33,16 +34,17 @@ pub struct ChatWindow {
 
 impl ChatWindow {
     /// Refresh the peer name in both the native title bar and conversation header.
-    pub fn update_peer_name(&self, name: &str) {
+    pub fn update_peer_identity(&self, name: &str, host: &str) {
         self.win.set_title(Some(&format!("和{}({})聊天窗口", name, self.ip)));
         self.conversation_title.set_text(name);
-        self.conversation_subtitle.set_text(&format!("{} · 局域网联系人", self.ip));
+        self.conversation_subtitle.set_text(&format!("主机名：{} · {}", host, self.ip));
     }
 }
 
-pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
+pub fn create_chat_window<S: Into<String>>(name: S, host_ip: S, host_name: S) -> ChatWindow {
     let name: String = name.into();
     let host_ip: String = host_ip.into();
+    let host_name: String = host_name.into();
     let chat_title = &format!("和{}({})聊天窗口", name, host_ip);
 
     let glade_src = include_str!("chat_window.ui");
@@ -57,7 +59,7 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
     let conversation_title: Label = builder.object("conversation_title").unwrap();
     conversation_title.set_text(&name);
     let conversation_subtitle: Label = builder.object("conversation_subtitle").unwrap();
-    conversation_subtitle.set_text(&format!("{} · 局域网联系人", host_ip));
+    conversation_subtitle.set_text(&format!("主机名：{} · {}", host_name, host_ip));
     // chat_window.set_border_width(5);
     // 消息历史使用独立行和气泡布局。
     let history_list: ListBox = builder.object("history_list").unwrap();
@@ -365,6 +367,7 @@ pub fn create_chat_window<S: Into<String>>(name :S, host_ip :S) -> ChatWindow {
         history_list,
         history_scroller,
         ip: host_ip,
+        host: host_name,
         pre_send_files,
         received_store: pre_received_files_model,
         conversation_title,
