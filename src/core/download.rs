@@ -76,6 +76,13 @@ pub struct PoolFile {
 pub fn download<A: ToSocketAddrs, S: AsRef<Path>>(addr: A, to_path: S, r_file: ReceivedSimpleFileInfo) -> Result<()> {
     info!("start download file");
     let file_type = r_file.attr as u32;
+    if file_type == IPMSG_FILE_REGULAR {
+        // The offered filename comes from the remote peer just like directory
+        // entry names, so validate it before joining it to the chosen folder.
+        validate_transfer_name(&r_file.name)?;
+    } else if file_type != IPMSG_FILE_DIR {
+        return Err(anyhow!("unsupported download file type: {:#x}", file_type));
+    }
     let mut stream = TcpStream::connect(addr)?;
     let packet = Packet::new(IPMSG_SENDMSG| if file_type == IPMSG_FILE_DIR { IPMSG_GETDIRFILES } else { IPMSG_GETFILEDATA }, Some(format!("{:x}:{:x}:0:\u{0}", r_file.packet_id, r_file.file_id)));
     stream.write(packet.to_string().as_bytes())?;
