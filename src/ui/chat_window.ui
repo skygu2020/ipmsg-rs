@@ -31,14 +31,14 @@
                 <property name="spacing">2</property>
                 <property name="valign">center</property>
                 <child>
-                  <object class="GtkLabel">
+                  <object class="GtkLabel" id="conversation_title">
                     <property name="label">正在进行的对话</property>
                     <property name="xalign">0</property>
                     <style><class name="title-3"/></style>
                   </object>
                 </child>
                 <child>
-                  <object class="GtkLabel">
+                  <object class="GtkLabel" id="conversation_subtitle">
                     <property name="label">局域网即时通讯</property>
                     <property name="xalign">0</property>
                     <style><class name="dim-label"/><class name="caption"/></style>
