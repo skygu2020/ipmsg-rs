@@ -62,6 +62,21 @@ impl ManagerPool {
                 });
             }
         }
+        let initial_total = if file_info.attr as u32 == IPMSG_FILE_REGULAR {
+            file_info.size
+        } else {
+            0
+        };
+        if let Err(err) = GLOBLE_SENDER.send(ModelEvent::DownloadProgress {
+            packet_id: file_info.packet_id,
+            file_id: file_info.file_id,
+            download_ip: download_ip.clone(),
+            transferred: 0,
+            total: initial_total,
+        }) {
+            log::warn!("failed to initialize download progress: {}", err);
+        }
+
         let tmp = self.clone();
         thread::spawn(move || {
             let download_url = format!("{}:{}", download_ip, protocol::IPMSG_DEFAULT_PORT);
@@ -162,6 +177,7 @@ where
         let destination_root = to_path.as_ref().to_path_buf();
         let mut next_path = destination_root.clone();
         let mut directory_depth = 0usize;
+        let mut directory_transferred = 0u64;
         let mut buffer = BufReader::new(stream);
         loop {
             let header_size_str = match read_delimiter(&mut buffer)? {
@@ -221,9 +237,15 @@ where
                     }
                 }
                 info!("receiving file {:?}", next_path);
-                let file_result = read_bytes_to_file(&mut buffer, file_size, &next_path, &mut progress);
+                let file_result = read_bytes_to_file(
+                    &mut buffer,
+                    file_size,
+                    &next_path,
+                    &mut |transferred, _| progress(directory_transferred.saturating_add(transferred), 0),
+                );
                 next_path.pop();
                 file_result?;
+                directory_transferred = directory_transferred.saturating_add(file_size);
             }else if cmd == IPMSG_FILE_RETPARENT {
                 if directory_depth == 0 {
                     return Err(anyhow!("directory transfer attempted to leave its destination root"));
