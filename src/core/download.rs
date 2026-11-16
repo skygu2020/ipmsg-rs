@@ -220,21 +220,17 @@ fn connect_with_timeout<A: ToSocketAddrs>(
     timeout: std::time::Duration,
 ) -> Result<TcpStream> {
     let mut last_error = None;
-    let mut attempted = false;
-
     for address in addr.to_socket_addrs()? {
-        attempted = true;
         match TcpStream::connect_timeout(&address, timeout) {
             Ok(stream) => return Ok(stream),
             Err(err) => last_error = Some(err),
         }
     }
 
-    if !attempted {
-        return Err(anyhow!("download address resolved to no socket addresses"));
+    match last_error {
+        Some(err) => Err(err.into()),
+        None => Err(anyhow!("download address resolved to no socket addresses")),
     }
-
-    Err(last_error.expect("at least one address was attempted").into())
 }
 
 // Check every directory below the user-selected root before writing into it.
