@@ -34,7 +34,7 @@ pub fn packet_parser<Input>() -> impl Parser<Input, Output=Packet>
         token(':'),
         many1(satisfy(|c| c != ':')),
         token(':'),
-        many(satisfy(|c| true)),
+        many(satisfy(|_| true)),
     ).map(|(verson, _, send_temp, _, hostname, _, host, _, cmd, _, ext): (String, _, String, _, String, _, String, _, String, _, String)| {
         let add_ext = if ext.is_empty() {
             None
