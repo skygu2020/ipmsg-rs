@@ -19,7 +19,7 @@ pub fn create_sendmsg(context :String, files: Vec<model::FileInfo>, tar_ip: Stri
     };
 
     let mut additional = String::new();
-    for (i, file) in files.iter().enumerate() {
+    for file in &files {
         additional.push_str(file.to_fileinfo_msg().as_str());
         additional.push('\u{7}');
     }
